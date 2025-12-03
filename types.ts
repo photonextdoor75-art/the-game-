@@ -5,6 +5,8 @@ export type SchoolStatKey = 'ECR' | 'LEC' | 'MAT' | 'SPO' | 'COM';
 
 export type QuestFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY';
 
+export type SeasonType = 'RENTREE' | 'AUTOMNE' | 'NOEL' | 'HIVER' | 'PRINTEMPS' | 'ETE';
+
 export interface StatDef {
   name: string;
   val: number; // 0-100

@@ -1,11 +1,45 @@
 
-import { AppState, QuestPreset, RewardDef, ShopItem } from "./types";
+import { AppState, QuestPreset, RewardDef, ShopItem, SeasonType } from "./types";
 
 export const AVATARS = [
     "🦁", "🐯", "🐻", "🐶", "🐱", "🐼", "🐨", "🐸",
     "🤖", "👽", "👻", "💀", "🦸", "🥷", "🧙", "🧚",
     "😎", "🤠", "🥳", "🥶", "🎃", "👾", "🦖", "🦄"
 ];
+
+// --- SEASONS LOGIC (Zone C / Paris) ---
+export const getCurrentSeason = (): SeasonType => {
+    const now = new Date();
+    const month = now.getMonth(); // 0-11 (Jan is 0)
+    const day = now.getDate();
+
+    // RENTREE: Sept 1 - Oct 17
+    if (month === 8 || (month === 9 && day < 18)) return 'RENTREE';
+    
+    // AUTOMNE / TOUSSAINT: Oct 18 - Nov 30
+    if ((month === 9 && day >= 18) || month === 10) return 'AUTOMNE';
+
+    // NOEL: Dec 1 - Jan 5 (Covers Advent + Holidays)
+    if (month === 11 || (month === 0 && day <= 5)) return 'NOEL';
+
+    // HIVER: Jan 6 - Mar 20
+    if ((month === 0 && day > 5) || month === 1 || (month === 2 && day < 20)) return 'HIVER';
+
+    // PRINTEMPS: Mar 20 - Jun 20
+    if ((month === 2 && day >= 20) || month === 3 || month === 4 || (month === 5 && day < 20)) return 'PRINTEMPS';
+
+    // ETE: Jun 21 - Aug 31
+    return 'ETE';
+};
+
+export const SEASON_CONFIG: Record<SeasonType, { bgGradient: string[] }> = {
+    RENTREE: { bgGradient: ['#2b1145', '#05020a'] }, // Deep Purple (Cosmic)
+    AUTOMNE: { bgGradient: ['#3d1e11', '#140802'] }, // Brown/Orange Dark
+    NOEL: { bgGradient: ['#0f2e47', '#020b14'] },    // Dark Ice Blue
+    HIVER: { bgGradient: ['#1e2530', '#000000'] },   // Cold Grey/Black
+    PRINTEMPS: { bgGradient: ['#1e3814', '#040f02'] }, // Deep Green
+    ETE: { bgGradient: ['#453811', '#120c02'] }      // Warm Gold/Dark
+};
 
 // --- QUESTS POOLS ---
 

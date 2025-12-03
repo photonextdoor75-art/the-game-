@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AppState, StatKey, QuestFrequency, CAT_COLORS, CAT_ICONS, ShopItem } from './types';
-import { INITIAL_STATE, AVATARS, KIDS_QUESTS, TEEN_QUESTS, WEEKLY_QUESTS, MONTHLY_QUESTS, DAILY_GIFT_POOL, SHOP_ITEMS } from './constants';
+import { AppState, StatKey, QuestFrequency, CAT_COLORS, CAT_ICONS, ShopItem, SeasonType } from './types';
+import { INITIAL_STATE, AVATARS, KIDS_QUESTS, TEEN_QUESTS, WEEKLY_QUESTS, MONTHLY_QUESTS, DAILY_GIFT_POOL, SHOP_ITEMS, getCurrentSeason } from './constants';
 import RadarChart from './components/RadarChart';
 import StarBackground from './components/StarBackground';
 
@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const [state, setState] = useState<AppState>(INITIAL_STATE);
   const [currentView, setCurrentView] = useState<ViewName>('quests');
   const [questTab, setQuestTab] = useState<QuestTab>('DAILY');
+  const [currentSeason, setCurrentSeason] = useState<SeasonType>('RENTREE');
   
   // --- ONBOARDING STATE ---
   const [onboardingStep, setOnboardingStep] = useState(1);
@@ -50,6 +51,11 @@ const App: React.FC = () => {
   
   // Connection Test
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+
+  // Init Season
+  useEffect(() => {
+      setCurrentSeason(getCurrentSeason());
+  }, []);
 
   // --- FIREBASE SYNC ---
   useEffect(() => {
@@ -250,15 +256,6 @@ const App: React.FC = () => {
       }
   };
 
-  const testFirebaseConnection = async () => {
-      setConnectionStatus('loading');
-      if (!user) { setConnectionStatus('error'); return; }
-      try {
-          await setDoc(doc(db, "debug_connections", user.uid), { status: "connected", ts: Date.now() });
-          setConnectionStatus('success');
-      } catch (e) { setConnectionStatus('error'); }
-  };
-
   // --- RENDER HELPERS ---
   
   // Filter quests
@@ -270,10 +267,9 @@ const App: React.FC = () => {
 
   // --- ONBOARDING RENDER ---
   if (!state.onboardingComplete) {
-      // (Keep existing Onboarding UI Logic but shortened for brevity as it was correct in previous iteration)
       return (
         <div className="flex flex-col h-[100dvh] w-full bg-black relative overflow-hidden font-body text-white items-center justify-center p-6">
-            <StarBackground />
+            <StarBackground season={currentSeason} />
             <div className="relative z-10 w-full max-w-md bg-[#1e1629] border-2 border-[#3d2e4f] rounded-2xl p-6">
                 <h1 className="text-3xl font-title text-center text-brawl-yellow text-stroke-1 mb-8">INITIATION</h1>
                 
@@ -308,7 +304,7 @@ const App: React.FC = () => {
   // --- MAIN APP RENDER ---
   return (
     <div className="flex flex-col h-[100dvh] max-w-lg mx-auto bg-black relative overflow-hidden font-body select-none">
-      <StarBackground />
+      <StarBackground season={currentSeason} />
 
       {/* HEADER */}
       <header className="relative z-10 flex items-center justify-between p-3 bg-brawl-panel/90 backdrop-blur border-b border-white/10">
