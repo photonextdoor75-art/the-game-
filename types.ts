@@ -1,5 +1,7 @@
 
-export type StatKey = 'MNT' | 'PHY' | 'ENV' | 'PRJ' | 'FAM';
+export type StatKey = 'MNT' | 'PHY' | 'ENV' | 'PRJ' | 'FAM' | 'ECO';
+
+export type SchoolStatKey = 'ECR' | 'LEC' | 'MAT' | 'SPO' | 'COM';
 
 export interface StatDef {
   name: string;
@@ -35,7 +37,10 @@ export interface AppState {
 
   quests: Quest[];
   stats: Record<StatKey, StatDef>;
+  schoolStats: Record<SchoolStatKey, StatDef>;
 }
+
+export type QuestPreset = Omit<Quest, 'id' | 'done'>;
 
 // Helper to get color by category for UI
 export const CAT_COLORS: Record<StatKey, string> = {
@@ -43,7 +48,8 @@ export const CAT_COLORS: Record<StatKey, string> = {
     PHY: '#d32f2f', // Red
     ENV: '#68fd56', // Green
     PRJ: '#d15eff', // Purple
-    FAM: '#ff9100'  // Orange
+    FAM: '#ff9100', // Orange
+    ECO: '#00e5ff'  // Cyan (School)
 };
 
 export const CAT_ICONS: Record<StatKey, string> = {
@@ -51,5 +57,6 @@ export const CAT_ICONS: Record<StatKey, string> = {
     PHY: '💪',
     ENV: '🏠',
     PRJ: '🚀',
-    FAM: '❤️'
+    FAM: '❤️',
+    ECO: '📚'
 };

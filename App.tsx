@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { AppState, StatKey, CAT_COLORS, CAT_ICONS } from './types';
-import { INITIAL_STATE, AVATARS, KIDS_QUESTS, TEEN_QUESTS } from './constants';
+import { INITIAL_STATE, AVATARS, KIDS_QUESTS, TEEN_QUESTS, KIDS_REWARDS, TEEN_REWARDS } from './constants';
 import RadarChart from './components/RadarChart';
 import StarBackground from './components/StarBackground';
 
@@ -158,6 +158,27 @@ const App: React.FC = () => {
             newState.tasksSinceLastBox += 1;
             newState.stats[statKey].val = Math.min(100, newState.stats[statKey].val + 5);
 
+            // SPECIAL SCHOOL LOGIC
+            if(statKey === 'ECO') {
+                const txt = q.txt.toLowerCase();
+                if(txt.includes('math') || txt.includes('calcul') || txt.includes('chiffre')) {
+                    newState.schoolStats.MAT.val = Math.min(100, newState.schoolStats.MAT.val + 5);
+                } else if (txt.includes('lire') || txt.includes('lecture') || txt.includes('livre')) {
+                    newState.schoolStats.LEC.val = Math.min(100, newState.schoolStats.LEC.val + 5);
+                } else if (txt.includes('ecri') || txt.includes('copie') || txt.includes('dictee')) {
+                    newState.schoolStats.ECR.val = Math.min(100, newState.schoolStats.ECR.val + 5);
+                } else if (txt.includes('sport') || txt.includes('gym')) {
+                    newState.schoolStats.SPO.val = Math.min(100, newState.schoolStats.SPO.val + 5);
+                } else {
+                    // Default to Behavior if generic school task
+                    newState.schoolStats.COM.val = Math.min(100, newState.schoolStats.COM.val + 2);
+                }
+            }
+            // If main sport category, also boost school sport
+            if(statKey === 'PHY') {
+                newState.schoolStats.SPO.val = Math.min(100, newState.schoolStats.SPO.val + 3);
+            }
+
             // Box Logic
             if(newState.tasksSinceLastBox >= 5) {
                 newState.boxes += 1;
@@ -211,17 +232,33 @@ const App: React.FC = () => {
       setIsShaking(true);
       setTimeout(() => {
           setIsShaking(false);
+          
+          // Select Reward List based on Age
+          const rewardsList = state.age < 14 ? KIDS_REWARDS : TEEN_REWARDS;
+          
+          // Weighted Random
           const roll = Math.random();
-          let r = { txt: "100 XP", rar: "RARE", color: "#54b734", val: 100 };
-          if(roll > 0.6) r = { txt: "BOOST MENTAL", rar: "SUPER RARE", color: "#00d2ff", val: 200 };
-          if(roll > 0.85) r = { txt: "BOOST PHYSIQUE", rar: "EPIC", color: "#b038fa", val: 500 };
-          if(roll > 0.95) r = { txt: "1000 XP", rar: "LEGENDARY", color: "#ffc400", val: 1000 };
+          let cumulativeProb = 0;
+          let selected = rewardsList[0];
+          
+          for(let r of rewardsList) {
+             // If we don't have explicit probs in this structure yet, we map from earlier code
+             // But let's assume TEEN_REWARDS has probs. 
+             // If probs are missing, we fallback to simple random
+             cumulativeProb += (r as any).prob || 0;
+             if(roll <= cumulativeProb) {
+                 selected = r;
+                 break;
+             }
+          }
+          // If loop finishes without selection (floating point errors), pick last
+          if(!selected) selected = rewardsList[rewardsList.length - 1];
 
-          setReward(r);
+          setReward(selected);
           setState(prev => ({
               ...prev,
               boxes: prev.boxes - 1,
-              xp: prev.xp + r.val
+              xp: prev.xp + selected.val
           }));
       }, 600);
   };
@@ -517,13 +554,23 @@ const App: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Chart */}
-                <div className="relative w-full max-w-[320px] aspect-square">
+                {/* Main Chart */}
+                <div className="relative w-full max-w-[320px] aspect-square mb-8">
                     <RadarChart stats={state.stats} />
                 </div>
 
+                {/* SCHOOL CHART FOR KIDS */}
+                {state.age < 14 && (
+                    <div className="w-full flex flex-col items-center animate-fade-in border-t-2 border-white/10 pt-6">
+                         <h2 className="font-title text-center text-xl mb-4 text-[#00e5ff] text-stroke-1 w-full">PERFORMANCE SCOLAIRE</h2>
+                         <div className="relative w-full max-w-[280px] aspect-square">
+                             <RadarChart stats={state.schoolStats} color="#00e5ff" bgOpacity={0.3} />
+                         </div>
+                    </div>
+                )}
+
                 {/* Info Profile */}
-                <div className="mt-4 text-center text-gray-500 text-xs font-tech">
+                <div className="mt-8 text-center text-gray-500 text-xs font-tech">
                     {state.age} ans • {state.customSport ? `Pratique: ${state.customSport}` : 'Aucun sport spécifié'}
                 </div>
 

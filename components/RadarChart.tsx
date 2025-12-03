@@ -1,12 +1,14 @@
 
 import React, { useEffect, useRef } from 'react';
-import { AppState } from '../types';
+import { StatDef } from '../types';
 
 interface RadarChartProps {
-    stats: AppState['stats'];
+    stats: Record<string, StatDef>;
+    color?: string;
+    bgOpacity?: number;
 }
 
-const RadarChart: React.FC<RadarChartProps> = ({ stats }) => {
+const RadarChart: React.FC<RadarChartProps> = ({ stats, color = "#0091ff", bgOpacity = 0.5 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
@@ -54,7 +56,6 @@ const RadarChart: React.FC<RadarChartProps> = ({ stats }) => {
             ctx.stroke();
             
             // Labels
-            // @ts-ignore
             const labelName = stats[keys[i]].name;
             const labelRadius = radius + 25;
             ctx.fillStyle = "#aaa";
@@ -66,7 +67,6 @@ const RadarChart: React.FC<RadarChartProps> = ({ stats }) => {
         // Draw Data Polymer
         ctx.beginPath();
         keys.forEach((key, i) => {
-            // @ts-ignore
             const val = stats[key].val;
             const r = (Math.min(val, 100) / 100) * radius;
             const angle = i * angleSlice - Math.PI / 2;
@@ -76,15 +76,23 @@ const RadarChart: React.FC<RadarChartProps> = ({ stats }) => {
         ctx.closePath();
         
         // Fill Area
-        ctx.fillStyle = "rgba(0, 145, 255, 0.5)"; // Stronger Blue
+        // Parse hex color to rgba for opacity
+        let r=0, g=145, b=255;
+        if(color.startsWith('#')) {
+             const bigint = parseInt(color.slice(1), 16);
+             r = (bigint >> 16) & 255;
+             g = (bigint >> 8) & 255;
+             b = bigint & 255;
+        }
+        
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${bgOpacity})`;
         ctx.fill();
-        ctx.strokeStyle = "#0091ff";
+        ctx.strokeStyle = color;
         ctx.lineWidth = 2;
         ctx.stroke();
         
         // Draw Dots
         keys.forEach((key, i) => {
-            // @ts-ignore
             const val = stats[key].val;
             const r = (Math.min(val, 100) / 100) * radius;
             const angle = i * angleSlice - Math.PI / 2;
@@ -97,11 +105,11 @@ const RadarChart: React.FC<RadarChartProps> = ({ stats }) => {
             ctx.stroke();
         });
 
-    }, [stats]);
+    }, [stats, color, bgOpacity]);
 
     return (
         <div className="w-full aspect-square flex items-center justify-center">
-            <canvas ref={canvasRef} width={300} height={300} className="max-w-full max-h-full drop-shadow-[0_0_15px_rgba(0,145,255,0.4)]" />
+            <canvas ref={canvasRef} width={300} height={300} className="max-w-full max-h-full drop-shadow-[0_0_15px_rgba(0,0,0,0.3)]" />
         </div>
     );
 };
