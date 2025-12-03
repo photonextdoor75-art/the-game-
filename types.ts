@@ -12,15 +12,22 @@ export interface Quest {
   txt: string;
   cat: StatKey;
   xp: number;
-  minLevel?: number; // New: Level required to unlock
+  minLevel?: number; // Level required to unlock
   done: boolean;
 }
 
 export interface AppState {
+  // Profile
+  onboardingComplete: boolean;
+  age: number;
+  gender: 'M' | 'F' | 'O';
+  avatar: string;
+  customSport?: string;
+
   level: number;
   xp: number;
   
-  // New Brawl Mechanics
+  // Brawl Mechanics
   boxes: number;
   tasksDoneTotal: number;
   streak: number;

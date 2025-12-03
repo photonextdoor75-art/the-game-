@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { AppState, StatKey, CAT_COLORS, CAT_ICONS } from './types';
-import { INITIAL_STATE } from './constants';
+import { INITIAL_STATE, AVATARS, KIDS_QUESTS, TEEN_QUESTS } from './constants';
 import RadarChart from './components/RadarChart';
 import StarBackground from './components/StarBackground';
 
@@ -11,7 +11,7 @@ import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
 // Icons
-import { Swords, BarChart3, Gift, Plus, X, Loader2, CheckCircle2, AlertCircle, Wifi, WifiOff, Lock, Minus, Plus as PlusIcon } from 'lucide-react';
+import { Swords, BarChart3, Gift, Plus, X, Loader2, CheckCircle2, AlertCircle, Wifi, WifiOff, Lock, Minus, Plus as PlusIcon, ArrowRight, User as UserIcon } from 'lucide-react';
 
 type ViewName = 'quests' | 'stats' | 'rewards';
 
@@ -19,6 +19,12 @@ const App: React.FC = () => {
   const [state, setState] = useState<AppState>(INITIAL_STATE);
   const [currentView, setCurrentView] = useState<ViewName>('quests');
   
+  // --- ONBOARDING STATE ---
+  const [onboardingStep, setOnboardingStep] = useState(1);
+  const [tempProfile, setTempProfile] = useState<{age: number, gender: 'M'|'F'|'O', avatar: string, customSport: string}>({
+      age: 10, gender: 'M', avatar: '😎', customSport: ''
+  });
+
   // UI States
   const [inputOpen, setInputOpen] = useState(false);
   
@@ -54,10 +60,12 @@ const App: React.FC = () => {
         const unsubSnap = onSnapshot(userDocRef, (snap) => {
           if (snap.exists()) {
             isRemoteUpdate.current = true;
-            // Merge in case of new fields
-            setState(prev => ({ ...INITIAL_STATE, ...snap.data() as AppState }));
+            const data = snap.data() as AppState;
+            // Merge logic to keep local session fluid but update from server
+            setState(prev => ({ ...INITIAL_STATE, ...data }));
             setDbReady(true);
           } else {
+            // New user, stick to INITIAL_STATE (onboardingComplete: false)
             setDoc(userDocRef, INITIAL_STATE).then(() => setDbReady(true));
           }
         }, (error) => {
@@ -83,11 +91,46 @@ const App: React.FC = () => {
     if (!user || !dbReady) return;
     if (isRemoteUpdate.current) { isRemoteUpdate.current = false; return; }
     
+    // Auto-save debounced
     const timeout = setTimeout(() => {
         setDoc(doc(db, 'users', user.uid), state).catch(console.error);
     }, 500);
     return () => clearTimeout(timeout);
   }, [state, user, dbReady]);
+
+  // --- ONBOARDING LOGIC ---
+  const finishOnboarding = () => {
+      // 1. Determine Quests based on Age
+      let initialQuests = [];
+      if (tempProfile.age < 14) {
+          initialQuests = [...KIDS_QUESTS];
+          // Add custom sport if provided
+          if(tempProfile.customSport) {
+              initialQuests.push({
+                  txt: `Séance ${tempProfile.customSport}`,
+                  cat: "PHY" as StatKey,
+                  xp: 50,
+                  minLevel: 1
+              });
+          }
+      } else {
+          initialQuests = [...TEEN_QUESTS];
+      }
+
+      // Add IDs
+      const finalQuests = initialQuests.map((q, idx) => ({ ...q, id: Date.now() + idx, done: false }));
+
+      // 2. Update State
+      setState(prev => ({
+          ...prev,
+          onboardingComplete: true,
+          age: tempProfile.age,
+          gender: tempProfile.gender,
+          avatar: tempProfile.avatar,
+          customSport: tempProfile.customSport,
+          quests: finalQuests
+      }));
+  };
 
   // --- GAMEPLAY ACTIONS ---
 
@@ -212,6 +255,137 @@ const App: React.FC = () => {
   // --- RENDER HELPERS ---
   const visibleQuests = state.quests.filter(q => filter === 'ALL' || q.cat === filter);
 
+  // --- ONBOARDING RENDER ---
+  if (!state.onboardingComplete) {
+      return (
+        <div className="flex flex-col h-[100dvh] w-full bg-black relative overflow-hidden font-body text-white items-center justify-center p-6">
+            <StarBackground />
+            
+            <div className="relative z-10 w-full max-w-md bg-[#1e1629] border-2 border-[#3d2e4f] rounded-2xl shadow-2xl p-6 animate-pop">
+                <h1 className="text-3xl font-title text-center text-brawl-yellow text-stroke-1 mb-8">
+                    CRÉATION DU HÉROS
+                </h1>
+
+                {/* STEP 1: AGE */}
+                {onboardingStep === 1 && (
+                    <div className="flex flex-col gap-6 items-center animate-fade-in">
+                        <label className="text-gray-400 font-bold uppercase tracking-widest">Quel âge as-tu ?</label>
+                        <div className="flex items-center gap-6">
+                            <button 
+                                onClick={() => setTempProfile(p => ({...p, age: Math.max(5, p.age - 1)}))}
+                                className="w-16 h-16 bg-brawl-red rounded-xl text-3xl font-title border-b-4 border-red-800 active:border-b-0 active:translate-y-1"
+                            >-</button>
+                            <div className="text-6xl font-title w-24 text-center">{tempProfile.age}</div>
+                            <button 
+                                onClick={() => setTempProfile(p => ({...p, age: Math.min(99, p.age + 1)}))}
+                                className="w-16 h-16 bg-brawl-green rounded-xl text-3xl font-title border-b-4 border-green-800 active:border-b-0 active:translate-y-1"
+                            >+</button>
+                        </div>
+                        <button 
+                            onClick={() => setOnboardingStep(2)}
+                            className="mt-8 w-full bg-brawl-blue py-4 rounded-xl font-title text-xl border-b-4 border-blue-700 active:border-b-0 active:translate-y-1"
+                        >
+                            SUIVANT
+                        </button>
+                    </div>
+                )}
+
+                {/* STEP 2: GENDER */}
+                {onboardingStep === 2 && (
+                    <div className="flex flex-col gap-6 items-center animate-fade-in">
+                        <label className="text-gray-400 font-bold uppercase tracking-widest">Ton Personnage</label>
+                        <div className="flex gap-4 w-full">
+                            <button 
+                                onClick={() => setTempProfile(p => ({...p, gender: 'M'}))}
+                                className={`flex-1 py-8 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${tempProfile.gender === 'M' ? 'bg-blue-900/50 border-brawl-blue' : 'bg-[#2a223a] border-transparent opacity-60'}`}
+                            >
+                                <span className="text-4xl">👦</span>
+                                <span className="font-title">GARÇON</span>
+                            </button>
+                            <button 
+                                onClick={() => setTempProfile(p => ({...p, gender: 'F'}))}
+                                className={`flex-1 py-8 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${tempProfile.gender === 'F' ? 'bg-pink-900/50 border-pink-500' : 'bg-[#2a223a] border-transparent opacity-60'}`}
+                            >
+                                <span className="text-4xl">👧</span>
+                                <span className="font-title">FILLE</span>
+                            </button>
+                        </div>
+                        <button 
+                            onClick={() => setOnboardingStep(tempProfile.age < 14 ? 3 : 4)}
+                            className="mt-8 w-full bg-brawl-blue py-4 rounded-xl font-title text-xl border-b-4 border-blue-700 active:border-b-0 active:translate-y-1"
+                        >
+                            SUIVANT
+                        </button>
+                    </div>
+                )}
+
+                {/* STEP 3: CUSTOM ACTIVITY (KIDS ONLY) */}
+                {onboardingStep === 3 && (
+                    <div className="flex flex-col gap-6 items-center animate-fade-in">
+                        <label className="text-gray-400 font-bold uppercase tracking-widest text-center">Ton sport ou activité préféré ?</label>
+                        <p className="text-xs text-center text-gray-500 -mt-4">(Judo, Handball, Danse, Dessin...)</p>
+                        
+                        <input 
+                            type="text" 
+                            value={tempProfile.customSport}
+                            onChange={(e) => setTempProfile(p => ({...p, customSport: e.target.value}))}
+                            placeholder="Ex: Judo"
+                            className="w-full bg-[#120c18] border-2 border-[#3d2e4f] rounded-xl p-4 text-white font-title text-center text-2xl outline-none focus:border-brawl-yellow"
+                        />
+
+                        <button 
+                            onClick={() => setOnboardingStep(4)}
+                            className="mt-8 w-full bg-brawl-blue py-4 rounded-xl font-title text-xl border-b-4 border-blue-700 active:border-b-0 active:translate-y-1"
+                        >
+                            SUIVANT
+                        </button>
+                    </div>
+                )}
+
+                {/* STEP 4: AVATAR */}
+                {onboardingStep === 4 && (
+                    <div className="flex flex-col gap-6 items-center animate-fade-in">
+                        <label className="text-gray-400 font-bold uppercase tracking-widest">Choisis ton Avatar</label>
+                        <div className="grid grid-cols-4 gap-2 w-full max-h-[300px] overflow-y-auto pr-1 scrollbar-hide">
+                            {AVATARS.map(ava => (
+                                <button
+                                    key={ava}
+                                    onClick={() => setTempProfile(p => ({...p, avatar: ava}))}
+                                    className={`
+                                        aspect-square text-3xl flex items-center justify-center rounded-xl transition-all
+                                        ${tempProfile.avatar === ava 
+                                            ? 'bg-brawl-yellow border-2 border-white scale-105 shadow-lg' 
+                                            : 'bg-[#2a223a] border border-transparent hover:bg-[#332a45]'}
+                                    `}
+                                >
+                                    {ava}
+                                </button>
+                            ))}
+                        </div>
+                        <button 
+                            onClick={finishOnboarding}
+                            className="mt-4 w-full bg-brawl-green text-black py-4 rounded-xl font-title text-xl border-b-8 border-green-800 active:border-b-0 active:translate-y-2 animate-pulse"
+                        >
+                            C'EST PARTI !
+                        </button>
+                    </div>
+                )}
+
+                {/* Progress Dots */}
+                <div className="flex justify-center gap-2 mt-6">
+                    {[1,2,3,4].map(step => {
+                        if (step === 3 && tempProfile.age >= 14) return null; // Skip step 3 dot for teens
+                        return (
+                            <div key={step} className={`w-2 h-2 rounded-full ${onboardingStep === step ? 'bg-white' : 'bg-gray-700'}`} />
+                        )
+                    })}
+                </div>
+            </div>
+        </div>
+      )
+  }
+
+  // --- MAIN APP RENDER ---
   return (
     <div className="flex flex-col h-[100dvh] max-w-lg mx-auto bg-black relative overflow-hidden font-body">
       
@@ -223,7 +397,7 @@ const App: React.FC = () => {
         <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-[#333] border-2 border-white rounded-full overflow-hidden relative shadow-[0_0_15px_rgba(255,255,255,0.3)]">
                 <div className="w-full h-full bg-gradient-to-br from-brawl-blue to-blue-700 flex items-center justify-center text-2xl">
-                    👤
+                    {state.avatar}
                 </div>
             </div>
             <div className="flex flex-col">
@@ -346,6 +520,11 @@ const App: React.FC = () => {
                 {/* Chart */}
                 <div className="relative w-full max-w-[320px] aspect-square">
                     <RadarChart stats={state.stats} />
+                </div>
+
+                {/* Info Profile */}
+                <div className="mt-4 text-center text-gray-500 text-xs font-tech">
+                    {state.age} ans • {state.customSport ? `Pratique: ${state.customSport}` : 'Aucun sport spécifié'}
                 </div>
 
                 {/* TEST BUTTON */}
