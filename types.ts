@@ -1,0 +1,48 @@
+
+export type StatKey = 'MNT' | 'PHY' | 'ENV' | 'PRJ' | 'FAM';
+
+export interface StatDef {
+  name: string;
+  val: number; // 0-100
+  max: number;
+}
+
+export interface Quest {
+  id: number;
+  txt: string;
+  cat: StatKey;
+  xp: number;
+  minLevel?: number; // New: Level required to unlock
+  done: boolean;
+}
+
+export interface AppState {
+  level: number;
+  xp: number;
+  
+  // New Brawl Mechanics
+  boxes: number;
+  tasksDoneTotal: number;
+  streak: number;
+  tasksSinceLastBox: number;
+
+  quests: Quest[];
+  stats: Record<StatKey, StatDef>;
+}
+
+// Helper to get color by category for UI
+export const CAT_COLORS: Record<StatKey, string> = {
+    MNT: '#0091ff', // Blue
+    PHY: '#d32f2f', // Red
+    ENV: '#68fd56', // Green
+    PRJ: '#d15eff', // Purple
+    FAM: '#ff9100'  // Orange
+};
+
+export const CAT_ICONS: Record<StatKey, string> = {
+    MNT: '🧠',
+    PHY: '💪',
+    ENV: '🏠',
+    PRJ: '🚀',
+    FAM: '❤️'
+};
