@@ -1,5 +1,5 @@
 
-export type StatKey = 'MNT' | 'PHY' | 'ENV' | 'PRJ' | 'FAM' | 'ECO';
+export type StatKey = 'MNT' | 'PHY' | 'ENV' | 'PRJ' | 'FAM' | 'ECO' | 'SOC';
 
 export type SchoolStatKey = 'ECR' | 'LEC' | 'MAT' | 'SPO' | 'COM';
 
@@ -49,7 +49,8 @@ export const CAT_COLORS: Record<StatKey, string> = {
     ENV: '#68fd56', // Green
     PRJ: '#d15eff', // Purple
     FAM: '#ff9100', // Orange
-    ECO: '#00e5ff'  // Cyan (School)
+    ECO: '#00e5ff', // Cyan (School)
+    SOC: '#ff0080'  // Pink (Social/Comportement)
 };
 
 export const CAT_ICONS: Record<StatKey, string> = {
@@ -58,5 +59,6 @@ export const CAT_ICONS: Record<StatKey, string> = {
     ENV: '🏠',
     PRJ: '🚀',
     FAM: '❤️',
-    ECO: '📚'
+    ECO: '📚',
+    SOC: '🤝'
 };

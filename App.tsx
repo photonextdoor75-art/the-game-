@@ -156,26 +156,42 @@ const App: React.FC = () => {
             newState.xp += q.xp;
             newState.tasksDoneTotal += 1;
             newState.tasksSinceLastBox += 1;
-            newState.stats[statKey].val = Math.min(100, newState.stats[statKey].val + 5);
+            
+            // Boost Main Stat
+            if(newState.stats[statKey]) {
+                newState.stats[statKey].val = Math.min(100, newState.stats[statKey].val + 5);
+            }
 
-            // SPECIAL SCHOOL LOGIC
+            // SPECIAL SCHOOL/GROWTH CHART LOGIC
+            const txt = q.txt.toLowerCase();
+
+            // 1. ECOLE -> Ecriture, Lecture, Maths, Sport
             if(statKey === 'ECO') {
-                const txt = q.txt.toLowerCase();
-                if(txt.includes('math') || txt.includes('calcul') || txt.includes('chiffre')) {
+                if(txt.includes('math') || txt.includes('calcul') || txt.includes('chiffre') || txt.includes('addition')) {
                     newState.schoolStats.MAT.val = Math.min(100, newState.schoolStats.MAT.val + 5);
-                } else if (txt.includes('lire') || txt.includes('lecture') || txt.includes('livre')) {
+                } else if (txt.includes('lire') || txt.includes('lecture') || txt.includes('livre') || txt.includes('poésie')) {
                     newState.schoolStats.LEC.val = Math.min(100, newState.schoolStats.LEC.val + 5);
-                } else if (txt.includes('ecri') || txt.includes('copie') || txt.includes('dictee')) {
+                } else if (txt.includes('ecri') || txt.includes('copie') || txt.includes('dictee') || txt.includes('devoir')) {
                     newState.schoolStats.ECR.val = Math.min(100, newState.schoolStats.ECR.val + 5);
                 } else if (txt.includes('sport') || txt.includes('gym')) {
                     newState.schoolStats.SPO.val = Math.min(100, newState.schoolStats.SPO.val + 5);
                 } else {
-                    // Default to Behavior if generic school task
                     newState.schoolStats.COM.val = Math.min(100, newState.schoolStats.COM.val + 2);
                 }
             }
-            // If main sport category, also boost school sport
-            if(statKey === 'PHY') {
+            
+            // 2. SOCIAL / COMPORTEMENT -> Comportement
+            if(statKey === 'SOC') {
+                 newState.schoolStats.COM.val = Math.min(100, newState.schoolStats.COM.val + 5);
+            }
+
+            // 3. FAMILLE -> Comportement (si c'est de l'aide)
+            if(statKey === 'FAM' && (txt.includes('aide') || txt.includes('gentil') || txt.includes('merci'))) {
+                 newState.schoolStats.COM.val = Math.min(100, newState.schoolStats.COM.val + 3);
+            }
+
+            // 4. PHYSIQUE -> Sport
+            if(statKey === 'PHY' && (txt.includes('sport') || txt.includes('ballon') || txt.includes('courir'))) {
                 newState.schoolStats.SPO.val = Math.min(100, newState.schoolStats.SPO.val + 3);
             }
 
@@ -185,10 +201,13 @@ const App: React.FC = () => {
                 newState.tasksSinceLastBox = 0;
             }
         } else {
+            // Undo Logic
             newState.xp = Math.max(0, newState.xp - q.xp);
             newState.tasksDoneTotal = Math.max(0, newState.tasksDoneTotal - 1);
             newState.tasksSinceLastBox = Math.max(0, newState.tasksSinceLastBox - 1);
-            newState.stats[statKey].val = Math.max(0, newState.stats[statKey].val - 5);
+            if(newState.stats[statKey]) {
+                newState.stats[statKey].val = Math.max(0, newState.stats[statKey].val - 5);
+            }
         }
 
         // Level Up logic
@@ -242,16 +261,12 @@ const App: React.FC = () => {
           let selected = rewardsList[0];
           
           for(let r of rewardsList) {
-             // If we don't have explicit probs in this structure yet, we map from earlier code
-             // But let's assume TEEN_REWARDS has probs. 
-             // If probs are missing, we fallback to simple random
              cumulativeProb += (r as any).prob || 0;
              if(roll <= cumulativeProb) {
                  selected = r;
                  break;
              }
           }
-          // If loop finishes without selection (floating point errors), pick last
           if(!selected) selected = rewardsList[rewardsList.length - 1];
 
           setReward(selected);
@@ -562,7 +577,7 @@ const App: React.FC = () => {
                 {/* SCHOOL CHART FOR KIDS */}
                 {state.age < 14 && (
                     <div className="w-full flex flex-col items-center animate-fade-in border-t-2 border-white/10 pt-6">
-                         <h2 className="font-title text-center text-xl mb-4 text-[#00e5ff] text-stroke-1 w-full">PERFORMANCE SCOLAIRE</h2>
+                         <h2 className="font-title text-center text-xl mb-4 text-[#00e5ff] text-stroke-1 w-full">CROISSANCE</h2>
                          <div className="relative w-full max-w-[280px] aspect-square">
                              <RadarChart stats={state.schoolStats} color="#00e5ff" bgOpacity={0.3} />
                          </div>
