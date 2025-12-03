@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <link rel="icon" href="https://fav.farm/🏆" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-    <meta name="theme-color" content="#1e1629" />
+    <meta name="theme-color" content="#120c18" />
     <title>BRAWL LIFE RPG</title>
     
     <!-- Fonts for the Brawl Stars aesthetic -->
@@ -59,6 +59,7 @@
             overscroll-behavior-y: none;
             -webkit-tap-highlight-color: transparent;
             user-select: none;
+            background-color: #120c18; /* Assure que le fond est noir même si React ne charge pas */
         }
         /* Custom Text Stroke Utility */
         .text-stroke-1 { -webkit-text-stroke: 1px black; }
@@ -74,11 +75,12 @@
     "react": "https://esm.sh/react@18.2.0",
     "react/": "https://esm.sh/react@18.2.0/",
     "react-dom": "https://esm.sh/react-dom@18.2.0",
-    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
     "lucide-react": "https://esm.sh/lucide-react@0.263.1",
     "firebase/app": "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js",
     "firebase/auth": "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js",
     "firebase/firestore": "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
     "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
   }
 }
@@ -86,5 +88,6 @@
 </head>
   <body class="bg-[#120c18] text-white overflow-hidden">
     <div id="root"></div>
+    <script type="module" src="./index.tsx"></script>
   </body>
 </html>
