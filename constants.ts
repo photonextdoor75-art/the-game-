@@ -107,6 +107,8 @@ export const SHOP_ITEMS: ShopItem[] = [
 ];
 
 export const INITIAL_STATE: AppState = {
+  name: '',
+  pin: '',
   onboardingComplete: false,
   age: 0,
   gender: 'O',

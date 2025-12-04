@@ -45,6 +45,10 @@ export interface ShopItem {
 }
 
 export interface AppState {
+  // Identity
+  name: string; // New: User's name
+  pin: string;  // New: 4 digit security code
+
   // Profile
   onboardingComplete: boolean;
   age: number;
