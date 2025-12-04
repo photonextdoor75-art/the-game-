@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AppState, StatKey, QuestFrequency, CAT_COLORS, CAT_ICONS, ShopItem, SeasonType, ViewName, AvatarDef, Quest } from './types';
+import { AppState, StatKey, QuestFrequency, CAT_COLORS, CAT_ICONS, ShopItem, SeasonType, ViewName, AvatarDef, Quest, StatDef } from './types';
 import { INITIAL_STATE, AVATAR_LIST, KIDS_QUESTS, TEEN_QUESTS, WEEKLY_QUESTS, MONTHLY_QUESTS, DAILY_GIFT_POOL, SHOP_ITEMS, getCurrentSeason } from './constants';
 import RadarChart from './components/RadarChart';
 import StarBackground from './components/StarBackground';
@@ -14,7 +14,7 @@ import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
 // Icons
-import { Swords, BarChart3, Gift, Plus, X, Lock, Minus, Plus as PlusIcon, Check, Calendar, Clock, Skull, Trophy, UserPlus, LogOut, Gamepad2, Loader2, CheckCircle2, AlertCircle, ArrowLeft, Trash2 } from 'lucide-react';
+import { Swords, BarChart3, Gift, Plus, X, Lock, Minus, Plus as PlusIcon, Check, Calendar, Clock, Skull, Trophy, UserPlus, LogOut, Gamepad2, Loader2, CheckCircle2, AlertCircle, ArrowLeft, Trash2, Bug, FolderOpen, RefreshCw } from 'lucide-react';
 
 type QuestTab = 'DAILY' | 'SEASON';
 type AuthStep = 'SELECT' | 'CREATE' | 'PIN' | 'APP';
@@ -60,6 +60,10 @@ const App: React.FC = () => {
   // Rewards States
   const [isShaking, setIsShaking] = useState(false);
   const [rewardModal, setRewardModal] = useState<{txt: string, sub?: string, icon?: string, color: string} | null>(null);
+  
+  // Debug State
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugStatus, setDebugStatus] = useState<{url: string, status: 'loading' | 'success' | 'error' | null}>({ url: '', status: null });
 
   // Sync States
   const [user, setUser] = useState<User | null>(null);
@@ -118,6 +122,21 @@ const App: React.FC = () => {
     }, 1000);
     return () => clearTimeout(timeout);
   }, [state, user, dbReady, activeProfileId]);
+
+  // --- DEBUG FUNCTION ---
+  const runImageDiagnostics = () => {
+      const testUrl = AVATAR_LIST[0].file; // Test with the first avatar
+      setDebugStatus({ url: testUrl, status: 'loading' });
+      
+      const img = new Image();
+      img.onload = () => setDebugStatus({ url: testUrl, status: 'success' });
+      img.onerror = () => setDebugStatus({ url: testUrl, status: 'error' });
+      img.src = testUrl;
+  };
+
+  useEffect(() => {
+      if (debugOpen) runImageDiagnostics();
+  }, [debugOpen]);
 
   // --- ACTIONS ---
 
@@ -315,6 +334,16 @@ const App: React.FC = () => {
       return (
           <div className="min-h-screen bg-brawl-dark p-6 flex flex-col items-center justify-center relative overflow-hidden">
               <StarBackground season={currentSeason} />
+              
+              {/* DEBUG BUTTON */}
+              <button 
+                onClick={() => setDebugOpen(true)} 
+                className="absolute top-4 right-4 z-50 p-2 bg-black/40 rounded-full text-gray-500 hover:text-brawl-yellow hover:bg-black/60 transition-colors"
+                title="Déboguer les images"
+              >
+                  <Bug size={20} />
+              </button>
+
               <div className="z-10 w-full max-w-md">
                   <h1 className="text-4xl font-title text-center text-brawl-yellow mb-8 text-stroke-2 drop-shadow-lg">QUI JOUE ?</h1>
                   
@@ -339,6 +368,57 @@ const App: React.FC = () => {
                       </div>
                   </div>
               </div>
+
+              {/* DEBUG MODAL */}
+              {debugOpen && (
+                  <div className="absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
+                      <div className="bg-[#1e1629] border-4 border-brawl-blue rounded-2xl p-6 w-full max-w-lg shadow-2xl overflow-y-auto max-h-[90vh]">
+                          <div className="flex justify-between items-center mb-6">
+                              <h2 className="font-title text-2xl text-brawl-blue flex items-center gap-2"><Bug /> DIAGNOSTIC</h2>
+                              <button onClick={() => setDebugOpen(false)} className="bg-white/10 p-2 rounded-full hover:bg-white/20"><X size={20}/></button>
+                          </div>
+                          
+                          <div className="space-y-6 font-mono text-sm">
+                              {/* TEST RESULT */}
+                              <div className="bg-black/40 p-4 rounded-xl border border-white/10">
+                                  <h3 className="text-gray-400 font-bold mb-2">TEST D'ACCÈS IMAGE</h3>
+                                  <div className="flex items-center gap-2 mb-2">
+                                      <span className="text-gray-500">URL Ciblée:</span>
+                                      <code className="text-brawl-yellow break-all">{debugStatus.url}</code>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                      <span className="text-gray-500">Statut:</span>
+                                      {debugStatus.status === 'loading' && <span className="text-yellow-500 flex items-center gap-1"><Loader2 size={14} className="animate-spin"/> Test en cours...</span>}
+                                      {debugStatus.status === 'success' && <span className="text-green-500 font-bold flex items-center gap-1"><CheckCircle2 size={16}/> SUCCESS (Image Trouvée)</span>}
+                                      {debugStatus.status === 'error' && <span className="text-red-500 font-bold flex items-center gap-1"><AlertCircle size={16}/> ERROR 404 (Introuvable)</span>}
+                                  </div>
+                              </div>
+
+                              {/* FOLDER GUIDE */}
+                              <div className="bg-black/40 p-4 rounded-xl border border-white/10">
+                                  <h3 className="text-gray-400 font-bold mb-2 flex items-center gap-2"><FolderOpen size={16}/> DOSSIER CRÉÉ</h3>
+                                  <p className="mb-4 text-gray-300">Le dossier <code>public/avatars</code> a été généré. Déposez vos images (300x350px) à l'intérieur :</p>
+                                  
+                                  <div className="bg-black p-3 rounded border-l-2 border-gray-600">
+                                      <div className="text-gray-500">Racine du projet/</div>
+                                      <div className="pl-4 text-brawl-green font-bold">📂 public/</div>
+                                      <div className="pl-8 text-brawl-blue font-bold">📂 avatars/</div>
+                                      <div className="pl-12 text-white">📄 README.txt</div>
+                                      <div className="pl-12 text-white/50 italic">... déposez vos images ici</div>
+                                  </div>
+                              </div>
+                              
+                              <div className="text-xs text-center text-gray-500 mt-4">
+                                  Une fois les images ajoutées, rechargez cette page.
+                              </div>
+
+                              <button onClick={runImageDiagnostics} className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-lg flex items-center justify-center gap-2 border border-white/20">
+                                  <RefreshCw size={16} /> Relancer le test
+                              </button>
+                          </div>
+                      </div>
+                  </div>
+              )}
           </div>
       );
   }
@@ -381,6 +461,15 @@ const App: React.FC = () => {
                    {createStep === 2 && (
                        <div className="flex flex-col h-full animate-fade-in">
                            <h3 className="text-center font-title text-xl mb-4">CHOISIS TON AVATAR</h3>
+                           
+                           {/* DEBUG BUTTON IN CREATE FLOW TOO */}
+                           <button 
+                                onClick={() => setDebugOpen(true)} 
+                                className="mx-auto mb-2 text-xs bg-black/40 px-3 py-1 rounded-full text-gray-500 hover:text-brawl-yellow flex items-center gap-1"
+                            >
+                                <Bug size={12} /> Problème d'image ?
+                            </button>
+
                            <div className="grid grid-cols-2 gap-4 overflow-y-auto max-h-[60vh] p-2">
                                {AVATAR_LIST.map(a => (
                                    <button 
@@ -421,6 +510,45 @@ const App: React.FC = () => {
                            <button onClick={handleCreateProfile} disabled={newProfile.pin.length !== 4} className="w-full py-4 bg-brawl-yellow border-b-4 border-yellow-700 rounded-xl text-xl font-title text-black mt-8 active:translate-y-1 active:border-b-0 disabled:opacity-50">C'EST PARTI !</button>
                        </div>
                    )}
+
+                   {/* DEBUG MODAL REUSE */}
+                    {debugOpen && (
+                        <div className="absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
+                            <div className="bg-[#1e1629] border-4 border-brawl-blue rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="font-title text-2xl text-brawl-blue flex items-center gap-2"><Bug /> DIAGNOSTIC</h2>
+                                    <button onClick={() => setDebugOpen(false)} className="bg-white/10 p-2 rounded-full hover:bg-white/20"><X size={20}/></button>
+                                </div>
+                                <div className="space-y-6 font-mono text-sm">
+                                    <div className="bg-black/40 p-4 rounded-xl border border-white/10">
+                                        <h3 className="text-gray-400 font-bold mb-2">TEST D'ACCÈS IMAGE</h3>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-gray-500">URL Ciblée:</span>
+                                            <code className="text-brawl-yellow break-all">{debugStatus.url}</code>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-500">Statut:</span>
+                                            {debugStatus.status === 'loading' && <span className="text-yellow-500 flex items-center gap-1"><Loader2 size={14} className="animate-spin"/> Test en cours...</span>}
+                                            {debugStatus.status === 'success' && <span className="text-green-500 font-bold flex items-center gap-1"><CheckCircle2 size={16}/> SUCCESS</span>}
+                                            {debugStatus.status === 'error' && <span className="text-red-500 font-bold flex items-center gap-1"><AlertCircle size={16}/> ERROR 404</span>}
+                                        </div>
+                                    </div>
+                                    <div className="bg-black/40 p-4 rounded-xl border border-white/10">
+                                        <h3 className="text-gray-400 font-bold mb-2 flex items-center gap-2"><FolderOpen size={16}/> DOSSIER CRÉÉ</h3>
+                                        <p className="mb-4 text-gray-300">Le dossier <code>public/avatars</code> a été généré. Déposez vos images (300x350px) à l'intérieur.</p>
+                                        <div className="bg-black p-3 rounded border-l-2 border-gray-600">
+                                            <div className="pl-4 text-brawl-green font-bold">📂 public/</div>
+                                            <div className="pl-8 text-brawl-blue font-bold">📂 avatars/</div>
+                                            <div className="pl-12 text-white/50 italic">... déposez vos images ici</div>
+                                        </div>
+                                    </div>
+                                    <button onClick={runImageDiagnostics} className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-lg flex items-center justify-center gap-2 border border-white/20">
+                                        <RefreshCw size={16} /> Relancer
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                </div>
           </div>
       );
@@ -538,7 +666,7 @@ const App: React.FC = () => {
                     <RadarChart stats={state.stats} />
                 </div>
                 <div className="space-y-3">
-                    {Object.entries(state.schoolStats).map(([key, stat]) => (
+                    {(Object.entries(state.schoolStats) as [string, StatDef][]).map(([key, stat]) => (
                         <div key={key} className="bg-black/30 p-3 rounded-xl flex items-center gap-3">
                             <div className="w-10 font-bold text-gray-400 text-xs">{stat.name.slice(0,3)}</div>
                             <div className="flex-grow h-4 bg-gray-700 rounded-full overflow-hidden">
