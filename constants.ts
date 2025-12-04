@@ -2,16 +2,16 @@
 import { AppState, QuestPreset, RewardDef, ShopItem, SeasonType, AvatarDef } from "./types";
 
 export const AVATAR_LIST: AvatarDef[] = [
-    { id: 'saiyan_sparky', file: 'saiyan_sparky.png', name: 'Saiyan Sparky' },
-    { id: 'ninja_bolt', file: 'ninja_bolt.png', name: 'Ninja Bolt' },
-    { id: 'octo_scout', file: 'octo_scout.png', name: 'Octo-Scout Ollie' },
-    { id: 'ranger_rex', file: 'ranger_rex.png', name: 'Ranger Rex' },
-    { id: 'mighty_mouse', file: 'mighty_mouse.png', name: 'Mighty Mouse' },
-    { id: 'baby_beam', file: 'baby_beam.png', name: 'Baby Beam' },
-    { id: 'lasagna_leo', file: 'lasagna_leo.png', name: 'Lasagna Leo' },
-    { id: 'sensei_shuriken', file: 'sensei_shuriken.png', name: 'Sensei Shuriken' },
-    { id: 'zord_kid', file: 'zord_kid.png', name: 'Zord Kid' },
-    { id: 'whisker_warrior', file: 'whisker_warrior.png', name: 'Whisker Warrior' },
+    { id: 'saiyan_sparky', file: '/avatars/saiyan_sparky.png', name: 'Saiyan Sparky' },
+    { id: 'ninja_bolt', file: '/avatars/ninja_bolt.png', name: 'Ninja Bolt' },
+    { id: 'octo_scout', file: '/avatars/octo_scout.png', name: 'Octo-Scout Ollie' },
+    { id: 'ranger_rex', file: '/avatars/ranger_rex.png', name: 'Ranger Rex' },
+    { id: 'mighty_mouse', file: '/avatars/mighty_mouse.png', name: 'Mighty Mouse' },
+    { id: 'baby_beam', file: '/avatars/baby_beam.png', name: 'Baby Beam' },
+    { id: 'lasagna_leo', file: '/avatars/lasagna_leo.png', name: 'Lasagna Leo' },
+    { id: 'sensei_shuriken', file: '/avatars/sensei_shuriken.png', name: 'Sensei Shuriken' },
+    { id: 'zord_kid', file: '/avatars/zord_kid.png', name: 'Zord Kid' },
+    { id: 'whisker_warrior', file: '/avatars/whisker_warrior.png', name: 'Whisker Warrior' },
 ];
 
 // --- SEASONS LOGIC (Zone C / Paris) ---
