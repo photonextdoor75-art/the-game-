@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { AppState, StatKey, QuestFrequency, CAT_COLORS, CAT_ICONS, ShopItem, SeasonType, ViewName, AvatarDef, Quest, StatDef } from './types';
 import { INITIAL_STATE, AVATAR_LIST, KIDS_QUESTS, TEEN_QUESTS, WEEKLY_QUESTS, MONTHLY_QUESTS, DAILY_GIFT_POOL, SHOP_ITEMS, getCurrentSeason } from './constants';
@@ -16,7 +15,7 @@ import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
 
 // Icons
-import { Swords, BarChart3, Gift, Plus, X, Lock, Minus, Plus as PlusIcon, Check, Calendar, Clock, Skull, Trophy, UserPlus, LogOut, Gamepad2, Loader2, CheckCircle2, AlertCircle, ArrowLeft, Trash2, Bug, FolderOpen, RefreshCw, Settings, ShieldAlert } from 'lucide-react';
+import { Swords, BarChart3, Gift, Plus, X, Lock, Minus, Plus as PlusIcon, Check, Calendar, Clock, Skull, Trophy, UserPlus, LogOut, Gamepad2, Loader2, CheckCircle2, AlertCircle, ArrowLeft, Trash2, Bug, FolderOpen, RefreshCw, Settings, ShieldAlert, AlertTriangle } from 'lucide-react';
 
 type QuestTab = 'DAILY' | 'SEASON';
 type AuthStep = 'SELECT' | 'CREATE' | 'PIN' | 'APP' | 'ADMIN_PIN' | 'ADMIN_PANEL';
@@ -43,6 +42,9 @@ const App: React.FC = () => {
   const [newProfile, setNewProfile] = useState({
       name: '', age: 10, gender: 'M' as 'M'|'F'|'O', avatar: 'saiyan_sparky', customSport: '', pin: ''
   });
+
+  // --- ADMIN STATE ---
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{id: string, name: string} | null>(null);
 
   // --- GAME STATE ---
   const [state, setState] = useState<AppState>(INITIAL_STATE);
@@ -150,34 +152,35 @@ const App: React.FC = () => {
 
   // --- ACTIONS ---
 
-  const handleDeleteProfile = async (id: string, e: React.MouseEvent) => {
-      e.stopPropagation(); // Prevents clicking the row
+  const promptDeleteProfile = (id: string, name: string, e: React.MouseEvent) => {
+      e.stopPropagation();
       e.preventDefault();
+      setDeleteConfirmation({ id, name });
+  };
 
-      if(window.confirm("Action irréversible : Supprimer définitivement ce profil et toutes ses données ?")) {
-          // 1. Optimistic Update (Immediate UI removal)
-          const oldProfiles = [...profiles];
-          const newProfiles = profiles.filter(p => p.id !== id);
-          setProfiles(newProfiles);
+  const confirmDeleteProfile = async () => {
+      if (!deleteConfirmation) return;
+      
+      const { id } = deleteConfirmation;
+      const oldProfiles = [...profiles];
+      
+      // 1. Optimistic Update
+      const newProfiles = profiles.filter(p => p.id !== id);
+      setProfiles(newProfiles);
+      setDeleteConfirmation(null); // Close modal
 
-          try {
-             // 2. Perform DB operation: Update List
-             await setDoc(doc(db, 'global', 'profiles'), { list: newProfiles });
-             
-             // 3. Perform DB operation: Delete User Data
-             await deleteDoc(doc(db, 'users', id));
-
-             // 4. If we deleted the currently active profile (unlikely in admin mode but possible), reset
-             if(activeProfileId === id) {
-                 setActiveProfileId(null);
-             }
-
-          } catch (error) {
-             // 3. Rollback if error
-             console.error("Delete failed", error);
-             alert("Erreur lors de la suppression. Vérifiez votre connexion.");
-             setProfiles(oldProfiles);
-          }
+      try {
+         // 2. DB Operations
+         await setDoc(doc(db, 'global', 'profiles'), { list: newProfiles });
+         await deleteDoc(doc(db, 'users', id));
+         
+         if(activeProfileId === id) {
+             setActiveProfileId(null);
+         }
+      } catch (error) {
+         console.error("Delete failed", error);
+         alert("Erreur lors de la suppression. Vérifiez votre connexion.");
+         setProfiles(oldProfiles); // Rollback
       }
   };
 
@@ -278,11 +281,10 @@ const App: React.FC = () => {
             newSinceBox = Math.max(0, newSinceBox - 1);
         }
 
-        // Stats Update (MORE IMPACT NOW that stats start low)
+        // Stats Update
         const newStats = { ...prev.stats };
         if (q.cat in newStats) {
             const stat = newStats[q.cat];
-            // +5 instead of +2 to make progress visible faster from 10
             stat.val = Math.min(stat.max, Math.max(0, stat.val + (nowDone ? 5 : -5)));
         }
 
@@ -292,7 +294,6 @@ const App: React.FC = () => {
         if(newXp >= xpForNext) {
             newLevel++;
             newXp -= xpForNext;
-            // TRIGGER LEVEL UP STARR DROP
             setStarrDrop({
                 active: true,
                 type: 'LEGENDARY',
@@ -339,13 +340,16 @@ const App: React.FC = () => {
 
   const buyItem = (item: ShopItem) => {
       if(state.tokens >= item.cost) {
-          if(window.confirm(`Acheter "${item.txt}" pour ${item.cost} jetons ?`)) {
+          // Use StarrDrop as confirmation/reward sequence directly?
+          // For now, let's just confirm simply or rely on the user having checked first.
+          // Let's assume click = buy for child simplicity, but maybe add a confirm step in a real app.
+          // Brawl Stars usually just buys.
+          
             setState(prev => ({
                 ...prev,
                 tokens: prev.tokens - item.cost
             }));
 
-            // Map rarity keys from French to English
             const rarityMap: Record<'COMMUNE' | 'RARE' | 'EPIQUE' | 'LEGENDAIRE', 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY'> = {
                 'COMMUNE': 'COMMON',
                 'RARE': 'RARE',
@@ -353,7 +357,6 @@ const App: React.FC = () => {
                 'LEGENDAIRE': 'LEGENDARY'
             };
             
-            // USE STARR DROP FOR SHOP ITEMS
             setStarrDrop({
                 active: true,
                 type: rarityMap[item.rar],
@@ -361,7 +364,6 @@ const App: React.FC = () => {
                 subText: "ACHAT RÉUSSI",
                 icon: item.icon
             });
-          }
       } else {
           setIsShaking(true);
           setTimeout(() => setIsShaking(false), 500);
@@ -370,9 +372,7 @@ const App: React.FC = () => {
 
   const handleGameWin = (tokens: number, xp: number) => {
       setState(prev => {
-          // Increase School Stats on game win
           const newSchoolStats = { ...prev.schoolStats };
-          // Randomly boost MATH or LEC based on gameMode ideally, but here generic boost
           newSchoolStats.MAT.val = Math.min(100, newSchoolStats.MAT.val + 2);
           newSchoolStats.LEC.val = Math.min(100, newSchoolStats.LEC.val + 2);
 
@@ -385,7 +385,6 @@ const App: React.FC = () => {
       });
       setGameMode('HUB');
       
-      // TRIGGER STARR DROP FOR GAME WIN
       setStarrDrop({
           active: true,
           type: tokens > 20 ? 'EPIC' : 'RARE',
@@ -551,7 +550,7 @@ const App: React.FC = () => {
                                             </div>
                                        </div>
                                        <button 
-                                            onClick={(e) => handleDeleteProfile(p.id, e)}
+                                            onClick={(e) => promptDeleteProfile(p.id, p.name, e)}
                                             className="p-3 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-colors border border-red-500/30 active:scale-95"
                                        >
                                            <Trash2 size={20} />
@@ -562,6 +561,35 @@ const App: React.FC = () => {
                        )}
                    </div>
               </div>
+
+              {/* CONFIRMATION MODAL */}
+              {deleteConfirmation && (
+                  <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-fade-in">
+                      <div className="bg-[#1e1629] border-4 border-red-600 rounded-2xl p-6 w-full max-w-sm shadow-[0_0_50px_rgba(220,38,38,0.5)]">
+                          <div className="flex justify-center mb-4 text-red-500">
+                              <AlertTriangle size={64} />
+                          </div>
+                          <h3 className="text-2xl font-title text-center text-white mb-2">SUPPRIMER ?</h3>
+                          <p className="text-center text-gray-400 mb-6">
+                              Voulez-vous vraiment effacer le profil de <span className="text-white font-bold">{deleteConfirmation.name}</span> ? Cette action est définitive.
+                          </p>
+                          <div className="flex gap-4">
+                              <button 
+                                  onClick={() => setDeleteConfirmation(null)}
+                                  className="flex-1 py-3 bg-gray-700 rounded-xl font-title text-white hover:bg-gray-600"
+                              >
+                                  ANNULER
+                              </button>
+                              <button 
+                                  onClick={confirmDeleteProfile}
+                                  className="flex-1 py-3 bg-red-600 rounded-xl font-title text-white hover:bg-red-700 shadow-lg"
+                              >
+                                  OUI, EFFACER
+                              </button>
+                          </div>
+                      </div>
+                  </div>
+              )}
           </div>
       );
   }
