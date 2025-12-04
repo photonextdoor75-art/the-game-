@@ -5,6 +5,8 @@ import { INITIAL_STATE, AVATARS, KIDS_QUESTS, TEEN_QUESTS, WEEKLY_QUESTS, MONTHL
 import RadarChart from './components/RadarChart';
 import StarBackground from './components/StarBackground';
 import MathGame from './components/MathGame';
+import GameHub from './components/GameHub';
+import ReadingGame from './components/ReadingGame';
 
 // Firebase
 import { auth, db } from './firebase';
@@ -16,21 +18,23 @@ import { Swords, BarChart3, Gift, Plus, X, Lock, Minus, Plus as PlusIcon, Check,
 
 type QuestTab = 'DAILY' | 'SEASON';
 type AuthStep = 'SELECT' | 'CREATE' | 'PIN' | 'APP';
+type GameMode = 'HUB' | 'MATH' | 'READ';
 
-interface LocalProfile {
+interface UserProfile {
     id: string; // This corresponds to the Firebase document ID
     name: string;
     avatar: string;
-    pin: string; // Stored locally for quick check (in a real app, hash this or check against DB)
+    pin: string; 
 }
 
 const App: React.FC = () => {
   // --- AUTH STATE ---
   const [authStep, setAuthStep] = useState<AuthStep>('SELECT');
-  const [savedProfiles, setSavedProfiles] = useState<LocalProfile[]>([]);
+  const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [pinInput, setPinInput] = useState('');
-  const [targetProfile, setTargetProfile] = useState<LocalProfile | null>(null);
+  const [targetProfile, setTargetProfile] = useState<UserProfile | null>(null);
+  const [profilesLoaded, setProfilesLoaded] = useState(false);
 
   // --- CREATION STATE ---
   const [createStep, setCreateStep] = useState(1);
@@ -41,6 +45,7 @@ const App: React.FC = () => {
   // --- GAME STATE ---
   const [state, setState] = useState<AppState>(INITIAL_STATE);
   const [currentView, setCurrentView] = useState<ViewName>('quests');
+  const [gameMode, setGameMode] = useState<GameMode>('HUB');
   const [questTab, setQuestTab] = useState<QuestTab>('DAILY');
   const [currentSeason, setCurrentSeason] = useState<SeasonType>('RENTREE');
   
@@ -65,18 +70,10 @@ const App: React.FC = () => {
 
   // --- INIT ---
   useEffect(() => {
-      // 1. Load profiles from LocalStorage
-      const stored = localStorage.getItem('brawl_profiles');
-      if (stored) {
-          setSavedProfiles(JSON.parse(stored));
-      } else {
-          setAuthStep('CREATE'); // First time ever
-      }
-      
-      // 2. Season
+      // 1. Season
       setCurrentSeason(getCurrentSeason());
 
-      // 3. Auth Anonymous
+      // 2. Auth Anonymous
       const unsub = onAuthStateChanged(auth, (u) => {
           if (!u) signInAnonymously(auth).catch(console.error);
           else setUser(u);
@@ -84,7 +81,34 @@ const App: React.FC = () => {
       return () => unsub();
   }, []);
 
-  // --- DATABASE SYNC ---
+  // --- LOAD PROFILES (Global) ---
+  useEffect(() => {
+    if(!user) return;
+    
+    // Listen to the 'profiles' collection
+    // Note: In a real multi-tenant app, you'd filter by family ID. 
+    // Here we assume a single shared DB for the demo/family.
+    const profilesRef = doc(db, 'settings', 'profiles'); // Store all profiles in a single doc for simplicity in this demo structure
+    // OR BETTER: Listen to a collection. Let's use a collection 'profiles' for robustness.
+    
+    // For this specific architecture where we transitioned from localStorage:
+    // We will query the collection 'profiles'.
+    const unsub = onSnapshot(doc(db, 'global', 'profiles'), (snap) => {
+        if(snap.exists()) {
+            setProfiles(snap.data().list || []);
+        } else {
+            setProfiles([]);
+            // Initialize if needed
+            setDoc(doc(db, 'global', 'profiles'), { list: [] });
+        }
+        setProfilesLoaded(true);
+    });
+
+    return () => unsub();
+  }, [user]);
+
+
+  // --- USER DATA SYNC ---
   useEffect(() => {
     if (!user || !activeProfileId || authStep !== 'APP') return;
 
@@ -120,19 +144,19 @@ const App: React.FC = () => {
 
   // --- AUTH ACTIONS ---
 
-  const handleDeleteProfile = (id: string, e: React.MouseEvent) => {
+  const handleDeleteProfile = async (id: string, e: React.MouseEvent) => {
       e.stopPropagation();
       if(window.confirm("Voulez-vous vraiment supprimer ce profil ?")) {
-          const updated = savedProfiles.filter(p => p.id !== id);
-          setSavedProfiles(updated);
-          localStorage.setItem('brawl_profiles', JSON.stringify(updated));
+          const updated = profiles.filter(p => p.id !== id);
+          // Update global list
+          await setDoc(doc(db, 'global', 'profiles'), { list: updated });
+          // Optionally delete user data: deleteDoc(doc(db, 'users', id));
       }
   };
 
   const handleCreateProfile = async () => {
       if(!newProfile.name || newProfile.pin.length !== 4) return;
 
-      // Use timestamp for ID to ensure compatibility
       const profileId = Date.now().toString(); 
       
       // Prepare Initial State
@@ -160,33 +184,30 @@ const App: React.FC = () => {
           onboardingComplete: true
       };
 
-      // Save to DB immediately (requires Anonymous Auth to be ready)
+      // 1. Save User Data
       if(user) {
           await setDoc(doc(db, 'users', profileId), newState);
       }
 
-      // Update Local Storage
-      const newLocal: LocalProfile = {
+      // 2. Update Global Profiles List
+      const newPublicProfile: UserProfile = {
           id: profileId,
           name: newProfile.name,
           avatar: newProfile.avatar,
           pin: newProfile.pin
       };
-      const updatedList = [...savedProfiles, newLocal];
-      setSavedProfiles(updatedList);
-      localStorage.setItem('brawl_profiles', JSON.stringify(updatedList));
+      const updatedList = [...profiles, newPublicProfile];
+      await setDoc(doc(db, 'global', 'profiles'), { list: updatedList });
 
-      // Reset
+      // Reset & Login
       setNewProfile({ name: '', age: 10, gender: 'M', avatar: '😎', customSport: '', pin: '' });
       setCreateStep(1);
-      
-      // Auto Login
       setActiveProfileId(profileId);
       setState(newState);
       setAuthStep('APP');
   };
 
-  const handleProfileClick = (p: LocalProfile) => {
+  const handleProfileClick = (p: UserProfile) => {
       setTargetProfile(p);
       setPinInput('');
       setAuthStep('PIN');
@@ -200,12 +221,9 @@ const App: React.FC = () => {
       
       if (newPin.length === 4) {
           if (targetProfile && newPin === targetProfile.pin) {
-              // Success
               setActiveProfileId(targetProfile.id);
-              // Wait for DB sync to load state, but we can optimistically set loading
               setAuthStep('APP');
           } else {
-              // Fail
               setTimeout(() => {
                   alert("Code Incorrect !");
                   setPinInput('');
@@ -218,6 +236,7 @@ const App: React.FC = () => {
       setAuthStep('SELECT');
       setActiveProfileId(null);
       setDbReady(false);
+      setGameMode('HUB'); // Reset game view
   };
 
   // --- GAME ACTIONS ---
@@ -327,29 +346,33 @@ const App: React.FC = () => {
               <div className="relative z-10 w-full max-w-md flex flex-col items-center">
                   <h1 className="text-4xl font-title text-center text-white text-stroke-1 mb-10 drop-shadow-lg">QUI JOUE ?</h1>
                   
-                  <div className="grid grid-cols-2 gap-6 w-full mb-10">
-                      {savedProfiles.map(p => (
-                          <div key={p.id} className="relative group flex flex-col items-center gap-3 cursor-pointer" onClick={() => handleProfileClick(p)}>
-                              <div className="w-24 h-24 rounded-2xl bg-[#1e1629] border-2 border-[#3d2e4f] flex items-center justify-center text-5xl shadow-xl group-hover:scale-105 group-hover:border-brawl-blue transition-all relative">
-                                  {p.avatar}
-                                  <button 
-                                    onClick={(e) => handleDeleteProfile(p.id, e)}
-                                    className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20 hover:bg-red-500"
-                                  >
-                                    <X size={14} />
-                                  </button>
-                              </div>
-                              <div className="font-title text-xl text-gray-200 group-hover:text-white">{p.name}</div>
-                          </div>
-                      ))}
-                      
-                      <button onClick={() => setAuthStep('CREATE')} className="flex flex-col items-center gap-3 group opacity-80 hover:opacity-100">
-                          <div className="w-24 h-24 rounded-full bg-black/40 border-2 border-dashed border-gray-500 flex items-center justify-center text-gray-400 group-hover:text-white group-hover:border-white transition-all">
-                              <Plus size={32} />
-                          </div>
-                          <div className="font-title text-xl text-gray-400">AJOUTER</div>
-                      </button>
-                  </div>
+                  {!profilesLoaded ? (
+                      <div className="text-brawl-blue font-title animate-pulse">Chargement des joueurs...</div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-6 w-full mb-10">
+                        {profiles.map(p => (
+                            <div key={p.id} className="relative group flex flex-col items-center gap-3 cursor-pointer" onClick={() => handleProfileClick(p)}>
+                                <div className="w-24 h-24 rounded-2xl bg-[#1e1629] border-2 border-[#3d2e4f] flex items-center justify-center text-5xl shadow-xl group-hover:scale-105 group-hover:border-brawl-blue transition-all relative">
+                                    {p.avatar}
+                                    <button 
+                                        onClick={(e) => handleDeleteProfile(p.id, e)}
+                                        className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20 hover:bg-red-500"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                                <div className="font-title text-xl text-gray-200 group-hover:text-white">{p.name}</div>
+                            </div>
+                        ))}
+                        
+                        <button onClick={() => setAuthStep('CREATE')} className="flex flex-col items-center gap-3 group opacity-80 hover:opacity-100">
+                            <div className="w-24 h-24 rounded-full bg-black/40 border-2 border-dashed border-gray-500 flex items-center justify-center text-gray-400 group-hover:text-white group-hover:border-white transition-all">
+                                <Plus size={32} />
+                            </div>
+                            <div className="font-title text-xl text-gray-400">AJOUTER</div>
+                        </button>
+                    </div>
+                  )}
               </div>
           </div>
       );
@@ -411,7 +434,7 @@ const App: React.FC = () => {
                         )}
                         
                         <button disabled={!newProfile.name} onClick={() => setCreateStep(2)} className="mt-6 w-full bg-brawl-blue py-3 rounded-xl font-title text-xl border-b-4 border-blue-700 disabled:opacity-50">SUIVANT</button>
-                        {savedProfiles.length > 0 && <button onClick={() => setAuthStep('SELECT')} className="text-center text-gray-500 text-sm mt-2">Annuler</button>}
+                        {profiles.length > 0 && <button onClick={() => setAuthStep('SELECT')} className="text-center text-gray-500 text-sm mt-2">Annuler</button>}
                     </div>
                 )}
                 
@@ -491,9 +514,13 @@ const App: React.FC = () => {
           {/* MAIN CONTENT */}
           <main className="flex-grow overflow-y-auto p-3 relative z-10 scrollbar-hide pb-24">
             
-            {/* VIEW: GAMES (New!) */}
+            {/* VIEW: GAMES */}
             {currentView === 'games' && (
-                <MathGame onWin={handleGameWin} />
+                <>
+                    {gameMode === 'HUB' && <GameHub onSelectGame={setGameMode} />}
+                    {gameMode === 'MATH' && <MathGame onWin={handleGameWin} onClose={() => setGameMode('HUB')} />}
+                    {gameMode === 'READ' && <ReadingGame onWin={handleGameWin} onClose={() => setGameMode('HUB')} />}
+                </>
             )}
 
             {/* VIEW: QUESTS */}
@@ -522,8 +549,6 @@ const App: React.FC = () => {
                             currentQuests.map(q => {
                                 const isLocked = state.level < (q.minLevel || 0);
                                 const isDaily = q.frequency === 'DAILY';
-                                
-                                // Visual Theme based on type
                                 const cardBg = isDaily ? 'bg-gradient-to-r from-[#2a223a] to-[#332a45]' : 'bg-gradient-to-r from-blue-900/80 to-purple-900/80';
                                 const borderColor = isDaily ? 'border-[#3d2e4f]' : 'border-brawl-blue';
                                 
@@ -531,21 +556,12 @@ const App: React.FC = () => {
                                     <div 
                                         key={q.id}
                                         onClick={() => advanceQuest(q.id)}
-                                        className={`
-                                            relative rounded-xl p-1 overflow-hidden group active:scale-98 transition-transform
-                                            ${isLocked ? 'grayscale opacity-60 pointer-events-none' : ''}
-                                        `}
+                                        className={`relative rounded-xl p-1 overflow-hidden group active:scale-98 transition-transform ${isLocked ? 'grayscale opacity-60 pointer-events-none' : ''}`}
                                     >
-                                        {/* Card Container */}
                                         <div className={`relative z-10 ${cardBg} border-2 ${borderColor} rounded-lg p-3 flex flex-col gap-2 shadow-lg`}>
-                                            
-                                            {/* Header: Icon + Title */}
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`
-                                                        w-10 h-10 rounded-md flex items-center justify-center text-xl border-2
-                                                        ${isDaily ? 'bg-black/30 border-white/10' : 'bg-black/30 border-brawl-blue/30'}
-                                                    `}>
+                                                    <div className={`w-10 h-10 rounded-md flex items-center justify-center text-xl border-2 ${isDaily ? 'bg-black/30 border-white/10' : 'bg-black/30 border-brawl-blue/30'}`}>
                                                         {isLocked ? <Lock size={16} /> : CAT_ICONS[q.cat]}
                                                     </div>
                                                     <div>
@@ -556,8 +572,6 @@ const App: React.FC = () => {
                                                         </div>
                                                     </div>
                                                 </div>
-                                                
-                                                {/* Rewards */}
                                                 <div className="flex flex-col items-end">
                                                     <div className="flex items-center gap-1 bg-black/40 px-1.5 rounded text-[10px] font-bold text-brawl-yellow border border-yellow-500/30">
                                                         <span>+{q.xp} XP</span>
@@ -567,14 +581,11 @@ const App: React.FC = () => {
                                                     </div>
                                                 </div>
                                             </div>
-
-                                            {/* Progress Bar (Brawl Style) */}
                                             <div className="relative h-6 bg-black/50 rounded-md border border-white/10 overflow-hidden mt-1">
                                                 <div 
                                                     className={`absolute top-0 left-0 h-full transition-all duration-300 ${q.done ? 'bg-brawl-green' : 'bg-brawl-yellow'}`}
                                                     style={{ width: `${(q.progress / q.maxProgress) * 100}%` }}
                                                 >
-                                                    {/* Striped pattern overlay */}
                                                     <div className="w-full h-full opacity-20 bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAIklEQVQIW2NkQAKrVq36zwjjgzhhYWGMYAEYB8RmROaABADeOQ8CXl/xfgAAAABJRU5ErkJggg==')]"></div>
                                                 </div>
                                                 <div className="absolute inset-0 flex items-center justify-between px-2 text-[10px] font-black text-white drop-shadow-md font-tech tracking-widest">
@@ -583,12 +594,7 @@ const App: React.FC = () => {
                                                 </div>
                                             </div>
                                         </div>
-                                        
-                                        {/* Delete Btn */}
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); deleteQuest(q.id); }}
-                                            className="absolute top-0 right-0 p-2 text-red-500 opacity-0 group-hover:opacity-100 z-20"
-                                        >
+                                        <button onClick={(e) => { e.stopPropagation(); deleteQuest(q.id); }} className="absolute top-0 right-0 p-2 text-red-500 opacity-0 group-hover:opacity-100 z-20">
                                             <X size={16} />
                                         </button>
                                     </div>
@@ -603,20 +609,14 @@ const App: React.FC = () => {
             {currentView === 'rewards' && (
                 <div className="animate-fade-in pb-20">
                     <div className="text-center font-title text-2xl text-white mb-6 text-stroke-1">BOUTIQUE</div>
-
-                    {/* 1. DAILY GIFT */}
                     <div className="mb-8">
                         <div className="flex items-center gap-2 mb-2 px-1">
                             <Clock size={16} className="text-brawl-green"/>
                             <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Cadeau Quotidien</span>
                         </div>
-                        
                         <div 
                             onClick={canClaimDaily ? claimDailyGift : undefined}
-                            className={`
-                                relative bg-[#2a223a] border-2 border-[#3d2e4f] rounded-xl p-4 flex items-center justify-between
-                                ${canClaimDaily ? 'cursor-pointer hover:border-brawl-green active:scale-98' : 'opacity-50 grayscale'}
-                            `}
+                            className={`relative bg-[#2a223a] border-2 border-[#3d2e4f] rounded-xl p-4 flex items-center justify-between ${canClaimDaily ? 'cursor-pointer hover:border-brawl-green active:scale-98' : 'opacity-50 grayscale'}`}
                         >
                             <div className="flex items-center gap-4">
                                 <div className={`w-16 h-16 bg-[url('https://em-content.zobj.net/source/microsoft-teams/337/package_1f4e6.png')] bg-contain bg-no-repeat bg-center ${isShaking ? 'animate-shake' : ''}`}></div>
@@ -628,14 +628,11 @@ const App: React.FC = () => {
                             {canClaimDaily && <div className="bg-brawl-green text-black font-bold px-3 py-1 rounded text-xs animate-pulse">NOUVEAU</div>}
                         </div>
                     </div>
-
-                    {/* 2. TOKEN EXCHANGE */}
                     <div>
                         <div className="flex items-center gap-2 mb-2 px-1">
                             <Trophy size={16} className="text-brawl-purple"/>
                             <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Échange de Points</span>
                         </div>
-                        
                         <div className="grid grid-cols-2 gap-3">
                             {SHOP_ITEMS.map(item => {
                                 const canAfford = state.tokens >= item.cost;
@@ -643,25 +640,12 @@ const App: React.FC = () => {
                                     <button
                                         key={item.id}
                                         onClick={() => buyItem(item)}
-                                        className={`
-                                            flex flex-col items-center p-3 rounded-xl border-2 transition-all relative overflow-hidden group
-                                            ${canAfford 
-                                                ? 'bg-[#2a223a] border-[#3d2e4f] active:scale-95 shadow-lg' 
-                                                : 'bg-[#1a1422] border-transparent opacity-80 cursor-not-allowed'}
-                                        `}
+                                        className={`flex flex-col items-center p-3 rounded-xl border-2 transition-all relative overflow-hidden group ${canAfford ? 'bg-[#2a223a] border-[#3d2e4f] active:scale-95 shadow-lg' : 'bg-[#1a1422] border-transparent opacity-80 cursor-not-allowed'}`}
                                     >
                                         {!canAfford && <div className="absolute top-2 right-2 text-white/20"><Lock size={16}/></div>}
-                                        {/* Icon */}
                                         <div className={`text-4xl mb-2 drop-shadow-lg ${canAfford ? 'group-hover:scale-110 transition-transform' : 'grayscale'}`}>{item.icon}</div>
-                                        
-                                        {/* Name */}
                                         <div className="font-title text-sm text-center leading-none mb-3 h-8 flex items-center justify-center">{item.txt}</div>
-                                        
-                                        {/* Price Tag */}
-                                        <div className={`
-                                            w-full py-1 rounded text-xs font-bold flex items-center justify-center gap-1
-                                            ${canAfford ? 'bg-brawl-purple text-white shadow-md' : 'bg-gray-800 text-gray-500'}
-                                        `}>
+                                        <div className={`w-full py-1 rounded text-xs font-bold flex items-center justify-center gap-1 ${canAfford ? 'bg-brawl-purple text-white shadow-md' : 'bg-gray-800 text-gray-500'}`}>
                                             <span>{item.cost}</span>
                                             <span className="text-[10px]">PTS</span>
                                         </div>
@@ -678,7 +662,6 @@ const App: React.FC = () => {
                 <div className="animate-fade-in flex flex-col items-center">
                     <RadarChart stats={state.stats} />
                     {state.age < 14 && <div className="mt-8"><RadarChart stats={state.schoolStats} color="#00e5ff" /></div>}
-                    
                     <div className="grid grid-cols-2 gap-4 w-full mt-8">
                         <div className="bg-[#2a223a] p-4 rounded-xl text-center border-b-4 border-brawl-blue">
                             <div className="text-2xl font-title">{state.tasksDoneTotal}</div>
@@ -694,7 +677,7 @@ const App: React.FC = () => {
 
           </main>
 
-          {/* NEW QUEST MODAL */}
+          {/* QUEST MODAL */}
           {inputOpen && (
               <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
                   <div className="bg-[#1e1629] border-2 border-[#3d2e4f] rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
@@ -709,15 +692,11 @@ const App: React.FC = () => {
                             value={newTaskTxt}
                             onChange={e => setNewTaskTxt(e.target.value)}
                           />
-                          
-                          {/* Category Grid */}
                           <div className="grid grid-cols-4 gap-2">
                               {(Object.keys(CAT_COLORS) as StatKey[]).map(cat => (
                                   <button key={cat} onClick={() => setNewTaskCat(cat)} className={`p-2 rounded-lg border text-xl ${newTaskCat===cat ? 'bg-white/10 border-white' : 'border-transparent'}`}>{CAT_ICONS[cat]}</button>
                               ))}
                           </div>
-
-                          {/* Reward Sliders */}
                           <div className="bg-[#120c18] p-3 rounded-xl border border-white/5">
                               <label className="text-xs font-bold text-gray-500 mb-1 block">RÉCOMPENSES</label>
                               <div className="flex gap-2 mb-2">
@@ -731,16 +710,10 @@ const App: React.FC = () => {
                                 <span className="text-white font-mono text-sm">{newTaskTokens}</span>
                               </div>
                           </div>
-
-                          {/* Config: Frequency & Max Progress */}
                           <div className="flex gap-3">
                               <div className="flex-1">
                                   <label className="text-xs font-bold text-gray-500 mb-1 block">RÉPÉTITION</label>
-                                  <select 
-                                    value={newTaskFreq} 
-                                    onChange={(e) => setNewTaskFreq(e.target.value as any)}
-                                    className="w-full bg-[#120c18] text-white p-2 rounded-lg border border-[#3d2e4f] text-sm font-bold"
-                                  >
+                                  <select value={newTaskFreq} onChange={(e) => setNewTaskFreq(e.target.value as any)} className="w-full bg-[#120c18] text-white p-2 rounded-lg border border-[#3d2e4f] text-sm font-bold">
                                       <option value="DAILY">Quotidien</option>
                                       <option value="WEEKLY">Hebdo</option>
                                       <option value="MONTHLY">Mensuel</option>
@@ -755,7 +728,6 @@ const App: React.FC = () => {
                                   </div>
                               </div>
                           </div>
-
                           <button onClick={addTask} className="bg-brawl-yellow text-black font-title text-lg py-3 rounded-xl border-b-4 border-yellow-700 mt-2">VALIDER</button>
                       </div>
                   </div>
@@ -774,10 +746,7 @@ const App: React.FC = () => {
 
           {/* FAB */}
           {currentView === 'quests' && (
-              <button 
-                onClick={openInputModal}
-                className="absolute bottom-24 right-4 w-14 h-14 bg-brawl-yellow rounded-xl border-b-4 border-yellow-700 flex items-center justify-center text-black shadow-xl hover:scale-105 active:border-b-0 active:translate-y-1 z-40"
-              >
+              <button onClick={openInputModal} className="absolute bottom-24 right-4 w-14 h-14 bg-brawl-yellow rounded-xl border-b-4 border-yellow-700 flex items-center justify-center text-black shadow-xl hover:scale-105 active:border-b-0 active:translate-y-1 z-40">
                   <Plus size={32} strokeWidth={3} />
               </button>
           )}
@@ -794,14 +763,11 @@ const App: React.FC = () => {
     );
   }
   
-  return null; // Should not reach here
+  return null;
 };
 
 const NavBtn: React.FC<{active: boolean, onClick: () => void, icon: React.ReactNode, label: string}> = ({active, onClick, icon, label}) => (
-    <button 
-        onClick={onClick}
-        className={`flex-1 flex flex-col items-center justify-center relative transition-colors ${active ? 'text-brawl-yellow' : 'text-gray-500'}`}
-    >
+    <button onClick={onClick} className={`flex-1 flex flex-col items-center justify-center relative transition-colors ${active ? 'text-brawl-yellow' : 'text-gray-500'}`}>
         {active && <div className="absolute top-0 w-12 h-1 bg-brawl-yellow shadow-[0_0_10px_#ffc400] rounded-b-full" />}
         <div className={`mb-1 ${active ? 'scale-110 drop-shadow-[0_0_5px_rgba(255,196,0,0.5)]' : ''}`}>{icon}</div>
         <div className="font-title text-[10px] tracking-widest">{label}</div>

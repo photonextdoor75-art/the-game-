@@ -42,7 +42,7 @@ export interface ShopItem {
   id: string;
   txt: string;
   cost: number; // Cost in Tokens
-  rar: 'RARE' | 'EPIQUE' | 'LEGENDAIRE';
+  rar: 'COMMUNE' | 'RARE' | 'EPIQUE' | 'LEGENDAIRE';
   color: string;
   icon: string;
 }

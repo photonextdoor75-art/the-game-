@@ -41,6 +41,22 @@ export const SEASON_CONFIG: Record<SeasonType, { bgGradient: string[] }> = {
     ETE: { bgGradient: ['#453811', '#120c02'] }      // Warm Gold/Dark
 };
 
+// --- READING GAME DATA ---
+export const READING_WORDS = [
+    { id: 1, text: "MOTO", syllables: ["MO", "TO"], image: "🏍️" },
+    { id: 2, text: "VÉLO", syllables: ["VÉ", "LO"], image: "🚲" },
+    { id: 3, text: "LAMA", syllables: ["LA", "MA"], image: "🦙" },
+    { id: 4, text: "DOMINO", syllables: ["DO", "MI", "NO"], image: "🎲" },
+    { id: 5, text: "TOMATE", syllables: ["TO", "MA", "TE"], image: "🍅" },
+    { id: 6, text: "BANANE", syllables: ["BA", "NA", "NE"], image: "🍌" },
+    { id: 7, text: "ROBOT", syllables: ["RO", "BOT"], image: "🤖" },
+    { id: 8, text: "CANAPÉ", syllables: ["CA", "NA", "PÉ"], image: "🛋️" },
+    { id: 9, text: "PYJAMA", syllables: ["PY", "JA", "MA"], image: "👕" },
+    { id: 10, text: "SIRÈNE", syllables: ["SI", "RÈ", "NE"], image: "🧜‍♀️" }
+];
+
+export const DISTRACTORS = ["RA", "PI", "LU", "SO", "NU", "KA", "RI", "PO", "TU", "ME"];
+
 // --- QUESTS POOLS ---
 
 // Quests for Age < 14
@@ -88,6 +104,10 @@ export const DAILY_GIFT_POOL: RewardDef[] = [
 
 // Token Shop (Medium to Extreme Prizes)
 export const SHOP_ITEMS: ShopItem[] = [
+    // PETIT (10-30 Tokens)
+    { id: 'bonbon_x2', txt: "2 Bonbons", cost: 15, rar: "COMMUNE", color: "#54b734", icon: "🍬" },
+    { id: 'chocolat_chaud', txt: "Chocolat Chaud", cost: 25, rar: "COMMUNE", color: "#54b734", icon: "☕" },
+
     // MOYEN (Cost 50-150 Tokens)
     { id: 'brawl_15', txt: "15 min Brawl Stars", cost: 100, rar: "RARE", color: "#0091ff", icon: "📱" },
     { id: 'music_15', txt: "15 min Musique/Danse", cost: 80, rar: "RARE", color: "#0091ff", icon: "🎵" },
