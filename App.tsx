@@ -13,7 +13,7 @@ import StarrDrop from './components/StarrDrop';
 // Firebase
 import { auth, db } from './firebase';
 import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
 
 // Icons
 import { Swords, BarChart3, Gift, Plus, X, Lock, Minus, Plus as PlusIcon, Check, Calendar, Clock, Skull, Trophy, UserPlus, LogOut, Gamepad2, Loader2, CheckCircle2, AlertCircle, ArrowLeft, Trash2, Bug, FolderOpen, RefreshCw, Settings, ShieldAlert } from 'lucide-react';
@@ -150,11 +150,34 @@ const App: React.FC = () => {
 
   // --- ACTIONS ---
 
-  const handleDeleteProfile = async (id: string) => {
-      if(window.confirm("Action irréversible : Supprimer définitivement ce profil ?")) {
-          const updated = profiles.filter(p => p.id !== id);
-          await setDoc(doc(db, 'global', 'profiles'), { list: updated });
-          // Optionally delete the user document too, but removing from list is enough for access control
+  const handleDeleteProfile = async (id: string, e: React.MouseEvent) => {
+      e.stopPropagation(); // Prevents clicking the row
+      e.preventDefault();
+
+      if(window.confirm("Action irréversible : Supprimer définitivement ce profil et toutes ses données ?")) {
+          // 1. Optimistic Update (Immediate UI removal)
+          const oldProfiles = [...profiles];
+          const newProfiles = profiles.filter(p => p.id !== id);
+          setProfiles(newProfiles);
+
+          try {
+             // 2. Perform DB operation: Update List
+             await setDoc(doc(db, 'global', 'profiles'), { list: newProfiles });
+             
+             // 3. Perform DB operation: Delete User Data
+             await deleteDoc(doc(db, 'users', id));
+
+             // 4. If we deleted the currently active profile (unlikely in admin mode but possible), reset
+             if(activeProfileId === id) {
+                 setActiveProfileId(null);
+             }
+
+          } catch (error) {
+             // 3. Rollback if error
+             console.error("Delete failed", error);
+             alert("Erreur lors de la suppression. Vérifiez votre connexion.");
+             setProfiles(oldProfiles);
+          }
       }
   };
 
@@ -528,8 +551,8 @@ const App: React.FC = () => {
                                             </div>
                                        </div>
                                        <button 
-                                            onClick={() => handleDeleteProfile(p.id)}
-                                            className="p-3 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-colors border border-red-500/30"
+                                            onClick={(e) => handleDeleteProfile(p.id, e)}
+                                            className="p-3 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-colors border border-red-500/30 active:scale-95"
                                        >
                                            <Trash2 size={20} />
                                        </button>
