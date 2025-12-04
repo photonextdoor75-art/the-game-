@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AppState, StatKey, QuestFrequency, CAT_COLORS, CAT_ICONS, ShopItem, SeasonType, ViewName } from './types';
-import { INITIAL_STATE, AVATARS, KIDS_QUESTS, TEEN_QUESTS, WEEKLY_QUESTS, MONTHLY_QUESTS, DAILY_GIFT_POOL, SHOP_ITEMS, getCurrentSeason } from './constants';
+import { AppState, StatKey, QuestFrequency, CAT_COLORS, CAT_ICONS, ShopItem, SeasonType, ViewName, AvatarDef } from './types';
+import { INITIAL_STATE, AVATAR_LIST, KIDS_QUESTS, TEEN_QUESTS, WEEKLY_QUESTS, MONTHLY_QUESTS, DAILY_GIFT_POOL, SHOP_ITEMS, getCurrentSeason } from './constants';
 import RadarChart from './components/RadarChart';
 import StarBackground from './components/StarBackground';
 import MathGame from './components/MathGame';
@@ -14,7 +14,7 @@ import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
 // Icons
-import { Swords, BarChart3, Gift, Plus, X, Lock, Minus, Plus as PlusIcon, Check, Calendar, Clock, Skull, Trophy, UserPlus, LogOut, Gamepad2 } from 'lucide-react';
+import { Swords, BarChart3, Gift, Plus, X, Lock, Minus, Plus as PlusIcon, Check, Calendar, Clock, Skull, Trophy, UserPlus, LogOut, Gamepad2, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 type QuestTab = 'DAILY' | 'SEASON';
 type AuthStep = 'SELECT' | 'CREATE' | 'PIN' | 'APP';
@@ -39,7 +39,7 @@ const App: React.FC = () => {
   // --- CREATION STATE ---
   const [createStep, setCreateStep] = useState(1);
   const [newProfile, setNewProfile] = useState({
-      name: '', age: 10, gender: 'M' as 'M'|'F'|'O', avatar: '😎', customSport: '', pin: ''
+      name: '', age: 10, gender: 'M' as 'M'|'F'|'O', avatar: 'saiyan_sparky', customSport: '', pin: ''
   });
 
   // --- GAME STATE ---
@@ -68,6 +68,10 @@ const App: React.FC = () => {
   const [dbReady, setDbReady] = useState(false);
   const isRemoteUpdate = useRef(false);
 
+  // Connection Test State
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState<string>('');
+
   // --- INIT ---
   useEffect(() => {
       // 1. Season
@@ -75,8 +79,14 @@ const App: React.FC = () => {
 
       // 2. Auth Anonymous
       const unsub = onAuthStateChanged(auth, (u) => {
-          if (!u) signInAnonymously(auth).catch(console.error);
-          else setUser(u);
+          if (!u) {
+              signInAnonymously(auth).catch((error) => {
+                  console.error("Auth Error:", error);
+                  // Optionally handle visual feedback for auth failure here if needed
+              });
+          } else {
+              setUser(u);
+          }
       });
       return () => unsub();
   }, []);
@@ -85,23 +95,17 @@ const App: React.FC = () => {
   useEffect(() => {
     if(!user) return;
     
-    // Listen to the 'profiles' collection
-    // Note: In a real multi-tenant app, you'd filter by family ID. 
-    // Here we assume a single shared DB for the demo/family.
-    const profilesRef = doc(db, 'settings', 'profiles'); // Store all profiles in a single doc for simplicity in this demo structure
-    // OR BETTER: Listen to a collection. Let's use a collection 'profiles' for robustness.
-    
-    // For this specific architecture where we transitioned from localStorage:
-    // We will query the collection 'profiles'.
     const unsub = onSnapshot(doc(db, 'global', 'profiles'), (snap) => {
         if(snap.exists()) {
             setProfiles(snap.data().list || []);
         } else {
             setProfiles([]);
-            // Initialize if needed
             setDoc(doc(db, 'global', 'profiles'), { list: [] });
         }
         setProfilesLoaded(true);
+    }, (error) => {
+        console.error("Error loading profiles:", error);
+        // Handle offline or permission errors nicely if needed
     });
 
     return () => unsub();
@@ -200,7 +204,7 @@ const App: React.FC = () => {
       await setDoc(doc(db, 'global', 'profiles'), { list: updatedList });
 
       // Reset & Login
-      setNewProfile({ name: '', age: 10, gender: 'M', avatar: '😎', customSport: '', pin: '' });
+      setNewProfile({ name: '', age: 10, gender: 'M', avatar: 'saiyan_sparky', customSport: '', pin: '' });
       setCreateStep(1);
       setActiveProfileId(profileId);
       setState(newState);
@@ -236,7 +240,7 @@ const App: React.FC = () => {
       setAuthStep('SELECT');
       setActiveProfileId(null);
       setDbReady(false);
-      setGameMode('HUB'); // Reset game view
+      setGameMode('HUB');
   };
 
   // --- GAME ACTIONS ---
@@ -332,6 +336,19 @@ const App: React.FC = () => {
       } else alert("Pas assez de points !");
   };
 
+  const handleNavClick = (view: ViewName) => {
+      if(view === 'games') {
+          setGameMode('HUB');
+      }
+      setCurrentView(view);
+  };
+
+  // Helper for rendering Avatar images
+  const getAvatarImg = (id: string, className: string = "") => {
+    const def = AVATAR_LIST.find(a => a.id === id) || AVATAR_LIST[0];
+    return <img src={`/avatars/${def.file}`} alt={def.name} className={`object-contain ${className}`} />;
+  };
+
   // --- RENDER ---
   const dailyQuests = state.quests.filter(q => q.frequency === 'DAILY');
   const seasonQuests = state.quests.filter(q => q.frequency !== 'DAILY');
@@ -352,11 +369,11 @@ const App: React.FC = () => {
                     <div className="grid grid-cols-2 gap-6 w-full mb-10">
                         {profiles.map(p => (
                             <div key={p.id} className="relative group flex flex-col items-center gap-3 cursor-pointer" onClick={() => handleProfileClick(p)}>
-                                <div className="w-24 h-24 rounded-2xl bg-[#1e1629] border-2 border-[#3d2e4f] flex items-center justify-center text-5xl shadow-xl group-hover:scale-105 group-hover:border-brawl-blue transition-all relative">
-                                    {p.avatar}
+                                <div className="w-24 h-24 rounded-2xl bg-[#1e1629] border-2 border-[#3d2e4f] flex items-center justify-center shadow-xl group-hover:scale-105 group-hover:border-brawl-blue transition-all relative overflow-hidden">
+                                    {getAvatarImg(p.avatar, "w-full h-full")}
                                     <button 
                                         onClick={(e) => handleDeleteProfile(p.id, e)}
-                                        className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20 hover:bg-red-500"
+                                        className="absolute top-0 right-0 p-1 bg-red-600/80 text-white rounded-bl-lg opacity-0 group-hover:opacity-100 transition-opacity z-20 hover:bg-red-500"
                                     >
                                         <X size={14} />
                                     </button>
@@ -384,7 +401,9 @@ const App: React.FC = () => {
           <div className="flex flex-col h-[100dvh] w-full bg-black relative overflow-hidden font-body text-white items-center justify-center p-6">
               <StarBackground season={currentSeason} />
               <div className="relative z-10 w-full max-w-sm bg-[#1e1629] border-2 border-[#3d2e4f] rounded-3xl p-8 flex flex-col items-center shadow-2xl">
-                  <div className="text-6xl mb-4">{targetProfile.avatar}</div>
+                  <div className="w-24 h-24 mb-4 rounded-full overflow-hidden border-2 border-white">
+                      {getAvatarImg(targetProfile.avatar, "w-full h-full")}
+                  </div>
                   <h2 className="text-2xl font-title mb-8 text-brawl-blue">{targetProfile.name}</h2>
                   
                   <div className="flex gap-4 mb-8">
@@ -441,9 +460,11 @@ const App: React.FC = () => {
                 {createStep === 2 && (
                     <div className="flex flex-col gap-4">
                         <label className="text-gray-400 font-bold uppercase text-xs text-center">Choisis ton Avatar</label>
-                        <div className="grid grid-cols-4 gap-2 max-h-[300px] overflow-y-auto p-1">
-                            {AVATARS.map(ava => (
-                                <button key={ava} onClick={() => setNewProfile(p => ({...p, avatar: ava}))} className={`text-3xl p-2 rounded-xl border-2 ${newProfile.avatar === ava ? 'bg-brawl-yellow border-white scale-110 shadow-lg' : 'bg-[#2a223a] border-transparent'}`}>{ava}</button>
+                        <div className="grid grid-cols-3 gap-3 max-h-[300px] overflow-y-auto p-1 no-scrollbar">
+                            {AVATAR_LIST.map(ava => (
+                                <button key={ava.id} onClick={() => setNewProfile(p => ({...p, avatar: ava.id}))} className={`rounded-xl border-2 overflow-hidden relative ${newProfile.avatar === ava.id ? 'bg-brawl-yellow border-white scale-105 shadow-lg' : 'bg-[#2a223a] border-transparent opacity-80'}`}>
+                                    <img src={`/avatars/${ava.file}`} alt={ava.name} className="w-full h-full object-contain" />
+                                </button>
                             ))}
                         </div>
                         <button onClick={() => setCreateStep(3)} className="mt-6 w-full bg-brawl-blue py-3 rounded-xl font-title text-xl border-b-4 border-blue-700">SUIVANT</button>
@@ -453,7 +474,9 @@ const App: React.FC = () => {
                 {createStep === 3 && (
                     <div className="flex flex-col gap-4 items-center">
                         <label className="text-gray-400 font-bold uppercase text-xs text-center">Crée ton Code Secret</label>
-                        <div className="text-6xl mb-4">{newProfile.avatar}</div>
+                        <div className="w-24 h-24 mb-4 rounded-full overflow-hidden border-2 border-white">
+                           {getAvatarImg(newProfile.avatar, "w-full h-full")}
+                        </div>
                         
                         <div className="flex gap-4 mb-4">
                             {[0, 1, 2, 3].map(i => (
@@ -487,8 +510,8 @@ const App: React.FC = () => {
           {/* HEADER */}
           <header className="relative z-10 flex items-center justify-between p-3 bg-brawl-panel/90 backdrop-blur border-b border-white/10">
             <div className="flex items-center gap-3" onClick={handleLogout}>
-                <div className="w-11 h-11 bg-gradient-to-br from-brawl-blue to-blue-700 rounded-lg border-2 border-white flex items-center justify-center text-2xl shadow-lg cursor-pointer hover:scale-105 active:scale-95 transition-transform">
-                    {state.avatar}
+                <div className="w-11 h-11 bg-gradient-to-br from-brawl-blue to-blue-700 rounded-lg border-2 border-white flex items-center justify-center shadow-lg cursor-pointer hover:scale-105 active:scale-95 transition-transform overflow-hidden">
+                    {getAvatarImg(state.avatar, "w-full h-full")}
                 </div>
                 <div className="flex flex-col leading-tight">
                     <span className="font-title text-lg text-brawl-yellow text-stroke-1">{state.name.toUpperCase()}</span>
@@ -753,10 +776,10 @@ const App: React.FC = () => {
 
           {/* BOTTOM NAV */}
           <nav className="relative z-20 bg-[#1e1629] border-t-2 border-white/10 h-[80px] flex pb-2 shadow-2xl">
-              <NavBtn active={currentView === 'games'} onClick={() => setCurrentView('games')} icon={<Gamepad2 size={26} />} label="JEUX" />
-              <NavBtn active={currentView === 'quests'} onClick={() => setCurrentView('quests')} icon={<Swords size={26} />} label="QUÊTES" />
-              <NavBtn active={currentView === 'rewards'} onClick={() => setCurrentView('rewards')} icon={<Gift size={26} />} label="BOUTIQUE" />
-              <NavBtn active={currentView === 'stats'} onClick={() => setCurrentView('stats')} icon={<BarChart3 size={26} />} label="STATS" />
+              <NavBtn active={currentView === 'games'} onClick={() => handleNavClick('games')} icon={<Gamepad2 size={26} />} label="JEUX" />
+              <NavBtn active={currentView === 'quests'} onClick={() => handleNavClick('quests')} icon={<Swords size={26} />} label="QUÊTES" />
+              <NavBtn active={currentView === 'rewards'} onClick={() => handleNavClick('rewards')} icon={<Gift size={26} />} label="BOUTIQUE" />
+              <NavBtn active={currentView === 'stats'} onClick={() => handleNavClick('stats')} icon={<BarChart3 size={26} />} label="STATS" />
           </nav>
 
         </div>

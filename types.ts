@@ -1,4 +1,5 @@
 
+
 export type StatKey = 'MNT' | 'PHY' | 'ENV' | 'PRJ' | 'FAM' | 'ECO' | 'SOC';
 
 export type SchoolStatKey = 'ECR' | 'LEC' | 'MAT' | 'SPO' | 'COM';
@@ -45,6 +46,12 @@ export interface ShopItem {
   rar: 'COMMUNE' | 'RARE' | 'EPIQUE' | 'LEGENDAIRE';
   color: string;
   icon: string;
+}
+
+export interface AvatarDef {
+    id: string;
+    file: string;
+    name: string;
 }
 
 export interface AppState {

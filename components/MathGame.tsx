@@ -90,10 +90,18 @@ const MathGame: React.FC<MathGameProps> = ({ onWin, onClose }) => {
     // --- RENDER MENU ---
     if (!mode) {
         return (
-            <div className="flex flex-col h-full p-4 animate-fade-in">
+            <div className="flex flex-col h-full p-4 animate-fade-in relative">
+                {/* Back to Hub Button */}
+                <div className="flex items-center justify-between mb-8">
+                     <button onClick={onClose} className="p-2 bg-white/10 rounded-lg hover:bg-white/20 active:scale-95">
+                        <ArrowLeft size={24} />
+                    </button>
+                    <div className="w-8"></div>
+                </div>
+
                 <div className="text-center mb-8">
-                    <h2 className="font-title text-3xl text-brawl-yellow text-stroke-1 mb-2">SALLE D'ARCADE</h2>
-                    <p className="text-gray-400 text-sm font-body">Choisis ton défi mathématique !</p>
+                    <h2 className="font-title text-3xl text-brawl-yellow text-stroke-1 mb-2">DÉFI MATHS</h2>
+                    <p className="text-gray-400 text-sm font-body">Choisis ton opération !</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 flex-grow content-center">

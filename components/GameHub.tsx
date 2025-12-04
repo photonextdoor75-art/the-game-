@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Calculator, BookOpen, Gamepad2 } from 'lucide-react';
+import { Calculator, BookOpen } from 'lucide-react';
 
 interface GameHubProps {
     onSelectGame: (game: 'MATH' | 'READ') => void;

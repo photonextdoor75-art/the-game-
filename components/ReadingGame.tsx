@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Volume2, Check, Sparkles } from 'lucide-react';
+import { ArrowLeft, Volume2, Sparkles } from 'lucide-react';
 import { READING_WORDS, DISTRACTORS } from '../constants';
 
 interface ReadingGameProps {
