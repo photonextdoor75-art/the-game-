@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AppState, StatKey, QuestFrequency, CAT_COLORS, CAT_ICONS, ShopItem, SeasonType } from './types';
+import { AppState, StatKey, QuestFrequency, CAT_COLORS, CAT_ICONS, ShopItem, SeasonType, ViewName } from './types';
 import { INITIAL_STATE, AVATARS, KIDS_QUESTS, TEEN_QUESTS, WEEKLY_QUESTS, MONTHLY_QUESTS, DAILY_GIFT_POOL, SHOP_ITEMS, getCurrentSeason } from './constants';
 import RadarChart from './components/RadarChart';
 import StarBackground from './components/StarBackground';
+import MathGame from './components/MathGame';
 
 // Firebase
 import { auth, db } from './firebase';
@@ -11,9 +12,8 @@ import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
 // Icons
-import { Swords, BarChart3, Gift, Plus, X, Lock, Minus, Plus as PlusIcon, Check, Calendar, Clock, Skull, Trophy, UserPlus, LogOut } from 'lucide-react';
+import { Swords, BarChart3, Gift, Plus, X, Lock, Minus, Plus as PlusIcon, Check, Calendar, Clock, Skull, Trophy, UserPlus, LogOut, Gamepad2 } from 'lucide-react';
 
-type ViewName = 'quests' | 'stats' | 'rewards';
 type QuestTab = 'DAILY' | 'SEASON';
 type AuthStep = 'SELECT' | 'CREATE' | 'PIN' | 'APP';
 
@@ -120,10 +120,20 @@ const App: React.FC = () => {
 
   // --- AUTH ACTIONS ---
 
+  const handleDeleteProfile = (id: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      if(window.confirm("Voulez-vous vraiment supprimer ce profil ?")) {
+          const updated = savedProfiles.filter(p => p.id !== id);
+          setSavedProfiles(updated);
+          localStorage.setItem('brawl_profiles', JSON.stringify(updated));
+      }
+  };
+
   const handleCreateProfile = async () => {
       if(!newProfile.name || newProfile.pin.length !== 4) return;
 
-      const profileId = crypto.randomUUID();
+      // Use timestamp for ID to ensure compatibility
+      const profileId = Date.now().toString(); 
       
       // Prepare Initial State
       let initialQuests = newProfile.age < 14 ? [...KIDS_QUESTS] : [...TEEN_QUESTS];
@@ -210,7 +220,19 @@ const App: React.FC = () => {
       setDbReady(false);
   };
 
-  // --- GAME ACTIONS (Existing Logic) ---
+  // --- GAME ACTIONS ---
+
+  const handleGameWin = (earnedTokens: number, earnedXp: number) => {
+      setState(prev => ({
+          ...prev,
+          tokens: prev.tokens + earnedTokens,
+          xp: prev.xp + earnedXp,
+          schoolStats: {
+              ...prev.schoolStats,
+              MAT: { ...prev.schoolStats.MAT, val: Math.min(100, prev.schoolStats.MAT.val + 2) }
+          }
+      }));
+  };
 
   const advanceQuest = (id: number) => {
     const q = state.quests.find(x => x.id === id);
@@ -307,12 +329,18 @@ const App: React.FC = () => {
                   
                   <div className="grid grid-cols-2 gap-6 w-full mb-10">
                       {savedProfiles.map(p => (
-                          <button key={p.id} onClick={() => handleProfileClick(p)} className="flex flex-col items-center gap-3 group">
-                              <div className="w-24 h-24 rounded-2xl bg-[#1e1629] border-2 border-[#3d2e4f] flex items-center justify-center text-5xl shadow-xl group-hover:scale-105 group-hover:border-brawl-blue transition-all">
+                          <div key={p.id} className="relative group flex flex-col items-center gap-3 cursor-pointer" onClick={() => handleProfileClick(p)}>
+                              <div className="w-24 h-24 rounded-2xl bg-[#1e1629] border-2 border-[#3d2e4f] flex items-center justify-center text-5xl shadow-xl group-hover:scale-105 group-hover:border-brawl-blue transition-all relative">
                                   {p.avatar}
+                                  <button 
+                                    onClick={(e) => handleDeleteProfile(p.id, e)}
+                                    className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20 hover:bg-red-500"
+                                  >
+                                    <X size={14} />
+                                  </button>
                               </div>
                               <div className="font-title text-xl text-gray-200 group-hover:text-white">{p.name}</div>
-                          </button>
+                          </div>
                       ))}
                       
                       <button onClick={() => setAuthStep('CREATE')} className="flex flex-col items-center gap-3 group opacity-80 hover:opacity-100">
@@ -463,6 +491,11 @@ const App: React.FC = () => {
           {/* MAIN CONTENT */}
           <main className="flex-grow overflow-y-auto p-3 relative z-10 scrollbar-hide pb-24">
             
+            {/* VIEW: GAMES (New!) */}
+            {currentView === 'games' && (
+                <MathGame onWin={handleGameWin} />
+            )}
+
             {/* VIEW: QUESTS */}
             {currentView === 'quests' && (
                 <div className="animate-fade-in">
@@ -751,6 +784,7 @@ const App: React.FC = () => {
 
           {/* BOTTOM NAV */}
           <nav className="relative z-20 bg-[#1e1629] border-t-2 border-white/10 h-[80px] flex pb-2 shadow-2xl">
+              <NavBtn active={currentView === 'games'} onClick={() => setCurrentView('games')} icon={<Gamepad2 size={26} />} label="JEUX" />
               <NavBtn active={currentView === 'quests'} onClick={() => setCurrentView('quests')} icon={<Swords size={26} />} label="QUÊTES" />
               <NavBtn active={currentView === 'rewards'} onClick={() => setCurrentView('rewards')} icon={<Gift size={26} />} label="BOUTIQUE" />
               <NavBtn active={currentView === 'stats'} onClick={() => setCurrentView('stats')} icon={<BarChart3 size={26} />} label="STATS" />

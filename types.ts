@@ -7,6 +7,9 @@ export type QuestFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY';
 
 export type SeasonType = 'RENTREE' | 'AUTOMNE' | 'NOEL' | 'HIVER' | 'PRINTEMPS' | 'ETE';
 
+// Added 'games' to the union type
+export type ViewName = 'quests' | 'stats' | 'rewards' | 'games';
+
 export interface StatDef {
   name: string;
   val: number; // 0-100
