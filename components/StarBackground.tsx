@@ -189,7 +189,7 @@ const StarBackground: React.FC<StarBackgroundProps> = ({ season = 'RENTREE' }) =
     }
 
     const particles: Particle[] = [];
-    const count = season === 'SNOW' ? 80 : 40; // More particles for snow
+    const count = (season === 'NOEL' || season === 'HIVER') ? 80 : 40; // More particles for snow
     for (let i = 0; i < count; i++) particles.push(new Particle());
 
     let animationId: number;
