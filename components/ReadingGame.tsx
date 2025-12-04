@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Volume2, Sparkles } from 'lucide-react';
+import { ArrowLeft, Volume2, Sparkles, AlertCircle } from 'lucide-react';
 import { READING_WORDS, DISTRACTORS } from '../constants';
 
 interface ReadingGameProps {
@@ -13,6 +13,7 @@ const ReadingGame: React.FC<ReadingGameProps> = ({ onWin, onClose }) => {
     const [options, setOptions] = useState<string[]>([]);
     const [userSelection, setUserSelection] = useState<string[]>([]);
     const [status, setStatus] = useState<'PLAYING' | 'SUCCESS' | 'ERROR'>('PLAYING');
+    const [feedbackMsg, setFeedbackMsg] = useState('');
 
     useEffect(() => {
         startNewRound();
@@ -23,44 +24,75 @@ const ReadingGame: React.FC<ReadingGameProps> = ({ onWin, onClose }) => {
         setWord(randomWord);
         setUserSelection([]);
         setStatus('PLAYING');
+        setFeedbackMsg('');
 
         // Mix correct syllables with distractors
         const needed = [...randomWord.syllables];
-        const dists = [...DISTRACTORS].sort(() => 0.5 - Math.random()).slice(0, 8 - needed.length);
+        // Ensure we don't have duplicates in distractors that are also in needed to avoid confusion
+        const safeDistractors = DISTRACTORS.filter(d => !needed.includes(d));
+        const dists = [...safeDistractors].sort(() => 0.5 - Math.random()).slice(0, 8 - needed.length);
         const pool = [...needed, ...dists].sort(() => 0.5 - Math.random());
         setOptions(pool);
     };
 
-    const speak = (text: string) => {
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = 'fr-FR';
-        u.rate = 0.8;
-        window.speechSynthesis.speak(u);
+    const safeSpeak = (text: string) => {
+        try {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // Cancel previous
+                const u = new SpeechSynthesisUtterance(text);
+                u.lang = 'fr-FR';
+                u.rate = 0.9;
+                window.speechSynthesis.speak(u);
+            }
+        } catch (e) {
+            console.warn("Speech synthesis error", e);
+        }
+    };
+
+    const safeVibrate = (pattern: number | number[]) => {
+        try {
+            if (navigator.vibrate) navigator.vibrate(pattern);
+        } catch (e) {
+            // Ignore vibration errors
+        }
     };
 
     const handleSyllableClick = (syl: string) => {
         if(!word || status === 'SUCCESS') return;
         
-        speak(syl);
+        safeSpeak(syl);
 
         const nextIdx = userSelection.length;
-        if(word.syllables[nextIdx] === syl) {
+        
+        // Safety check
+        if (nextIdx >= word.syllables.length) return;
+
+        const expected = word.syllables[nextIdx];
+
+        if(expected === syl) {
+            // Correct logic
             const newSel = [...userSelection, syl];
             setUserSelection(newSel);
+            setFeedbackMsg('');
             
             if(newSel.length === word.syllables.length) {
                 setStatus('SUCCESS');
-                speak("Bravo ! " + word.text);
-                if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                safeSpeak("Bravo ! " + word.text);
+                safeVibrate([100, 50, 100]);
                 setTimeout(() => {
                     onWin(15, 30); // 15 tokens, 30 xp
                     startNewRound();
                 }, 2000);
             }
         } else {
+            // Error logic
             setStatus('ERROR');
-            if(navigator.vibrate) navigator.vibrate(200);
-            setTimeout(() => setStatus('PLAYING'), 500);
+            setFeedbackMsg("Dans l'ordre !");
+            safeVibrate(200);
+            setTimeout(() => {
+                setStatus('PLAYING');
+                setFeedbackMsg('');
+            }, 800);
         }
     };
 
@@ -81,7 +113,7 @@ const ReadingGame: React.FC<ReadingGameProps> = ({ onWin, onClose }) => {
                 
                 {/* IMAGE CARD */}
                 <button 
-                    onClick={() => speak(word.text)}
+                    onClick={() => safeSpeak(word.text)}
                     className="w-48 h-48 bg-white rounded-3xl flex items-center justify-center text-8xl shadow-[0_0_30px_rgba(176,56,250,0.4)] border-4 border-brawl-purple relative active:scale-95 transition-transform"
                 >
                     {word.image}
@@ -90,21 +122,37 @@ const ReadingGame: React.FC<ReadingGameProps> = ({ onWin, onClose }) => {
                     </div>
                 </button>
 
+                {/* INSTRUCTIONS */}
+                <div className="h-6">
+                    {feedbackMsg ? (
+                        <span className="text-red-400 font-bold animate-shake flex items-center gap-1"><AlertCircle size={16}/> {feedbackMsg}</span>
+                    ) : (
+                        <span className="text-gray-400 text-sm">Compose le mot : <b className="text-white">{word.text}</b></span>
+                    )}
+                </div>
+
                 {/* SLOTS */}
-                <div className="flex gap-2 min-h-[60px]">
-                    {word.syllables.map((s, i) => (
-                        <div 
-                            key={i} 
-                            className={`
-                                w-16 h-16 rounded-xl flex items-center justify-center text-2xl font-title border-2 transition-all
-                                ${userSelection[i] 
-                                    ? 'bg-brawl-green border-green-400 text-black shadow-[0_4px_0_#2e7d32] translate-y-0' 
-                                    : 'bg-black/40 border-dashed border-gray-600 text-gray-600'}
-                            `}
-                        >
-                            {userSelection[i] || '?'}
-                        </div>
-                    ))}
+                <div className="flex gap-2 min-h-[70px]">
+                    {word.syllables.map((s, i) => {
+                        const filled = userSelection[i];
+                        const isActive = i === userSelection.length && status !== 'SUCCESS';
+                        
+                        return (
+                            <div 
+                                key={i} 
+                                className={`
+                                    w-16 h-16 rounded-xl flex items-center justify-center text-2xl font-title border-4 transition-all duration-300
+                                    ${filled 
+                                        ? 'bg-brawl-green border-green-600 text-black shadow-[0_4px_0_#2e7d32] scale-100' 
+                                        : isActive 
+                                            ? 'bg-white/10 border-brawl-yellow animate-pulse text-white/50' 
+                                            : 'bg-black/40 border-dashed border-gray-600 text-gray-700'}
+                                `}
+                            >
+                                {filled || (isActive ? '?' : '')}
+                            </div>
+                        );
+                    })}
                 </div>
 
                 {/* KEYBOARD */}
@@ -113,18 +161,18 @@ const ReadingGame: React.FC<ReadingGameProps> = ({ onWin, onClose }) => {
                         <button
                             key={i}
                             onClick={() => handleSyllableClick(syl)}
-                            className="h-14 bg-[#2a223a] border-b-4 border-[#1a1422] rounded-xl font-title text-xl text-white hover:bg-[#332a45] active:border-b-0 active:translate-y-1 transition-all shadow-lg"
+                            className="h-14 bg-[#2a223a] border-b-4 border-[#1a1422] rounded-xl font-title text-xl text-white hover:bg-[#332a45] active:border-b-0 active:translate-y-1 transition-all shadow-lg focus:outline-none"
                         >
                             {syl}
                         </button>
                     ))}
                 </div>
 
-                {/* FEEDBACK */}
-                <div className="h-8 flex items-center justify-center">
+                {/* SUCCESS FEEDBACK */}
+                <div className="h-12 flex items-center justify-center">
                     {status === 'SUCCESS' && (
-                        <div className="flex items-center gap-2 text-brawl-green font-title text-2xl animate-pop">
-                            <Sparkles /> SUPER !
+                        <div className="flex items-center gap-2 text-brawl-green font-title text-3xl animate-pop drop-shadow-md bg-black/50 px-6 py-2 rounded-full border border-brawl-green">
+                            <Sparkles className="text-yellow-400" /> SUPER !
                         </div>
                     )}
                 </div>

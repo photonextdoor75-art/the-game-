@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { AppState, StatKey, QuestFrequency, CAT_COLORS, CAT_ICONS, ShopItem, SeasonType, ViewName, AvatarDef, Quest, StatDef } from './types';
 import { INITIAL_STATE, AVATAR_LIST, KIDS_QUESTS, TEEN_QUESTS, WEEKLY_QUESTS, MONTHLY_QUESTS, DAILY_GIFT_POOL, SHOP_ITEMS, getCurrentSeason } from './constants';
@@ -7,6 +8,7 @@ import StarBackground from './components/StarBackground';
 import MathGame from './components/MathGame';
 import GameHub from './components/GameHub';
 import ReadingGame from './components/ReadingGame';
+import StarrDrop from './components/StarrDrop';
 
 // Firebase
 import { auth, db } from './firebase';
@@ -14,10 +16,10 @@ import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
 // Icons
-import { Swords, BarChart3, Gift, Plus, X, Lock, Minus, Plus as PlusIcon, Check, Calendar, Clock, Skull, Trophy, UserPlus, LogOut, Gamepad2, Loader2, CheckCircle2, AlertCircle, ArrowLeft, Trash2, Bug, FolderOpen, RefreshCw } from 'lucide-react';
+import { Swords, BarChart3, Gift, Plus, X, Lock, Minus, Plus as PlusIcon, Check, Calendar, Clock, Skull, Trophy, UserPlus, LogOut, Gamepad2, Loader2, CheckCircle2, AlertCircle, ArrowLeft, Trash2, Bug, FolderOpen, RefreshCw, Settings, ShieldAlert } from 'lucide-react';
 
 type QuestTab = 'DAILY' | 'SEASON';
-type AuthStep = 'SELECT' | 'CREATE' | 'PIN' | 'APP';
+type AuthStep = 'SELECT' | 'CREATE' | 'PIN' | 'APP' | 'ADMIN_PIN' | 'ADMIN_PANEL';
 type GameMode = 'HUB' | 'MATH' | 'READ';
 
 interface UserProfile {
@@ -59,7 +61,15 @@ const App: React.FC = () => {
 
   // Rewards States
   const [isShaking, setIsShaking] = useState(false);
-  const [rewardModal, setRewardModal] = useState<{txt: string, sub?: string, icon?: string, color: string} | null>(null);
+  
+  // Starr Drop State (Replaces simple modal)
+  const [starrDrop, setStarrDrop] = useState<{
+      active: boolean;
+      type: 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
+      rewardText: string;
+      subText?: string;
+      icon?: string;
+  }>({ active: false, type: 'RARE', rewardText: '' });
   
   // Debug State
   const [debugOpen, setDebugOpen] = useState(false);
@@ -140,11 +150,11 @@ const App: React.FC = () => {
 
   // --- ACTIONS ---
 
-  const handleDeleteProfile = async (id: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      if(window.confirm("Voulez-vous vraiment supprimer ce profil ?")) {
+  const handleDeleteProfile = async (id: string) => {
+      if(window.confirm("Action irréversible : Supprimer définitivement ce profil ?")) {
           const updated = profiles.filter(p => p.id !== id);
           await setDoc(doc(db, 'global', 'profiles'), { list: updated });
+          // Optionally delete the user document too, but removing from list is enough for access control
       }
   };
 
@@ -198,6 +208,19 @@ const App: React.FC = () => {
   };
 
   const verifyPin = () => {
+      // ADMIN CHECK
+      if (authStep === 'ADMIN_PIN') {
+          if (pinInput === '1983') {
+              setAuthStep('ADMIN_PANEL');
+              setPinInput('');
+          } else {
+              alert("Code Admin Incorrect");
+              setPinInput('');
+          }
+          return;
+      }
+
+      // USER CHECK
       if (targetProfile && pinInput === targetProfile.pin) {
           setActiveProfileId(targetProfile.id);
           setAuthStep('APP');
@@ -232,11 +255,12 @@ const App: React.FC = () => {
             newSinceBox = Math.max(0, newSinceBox - 1);
         }
 
-        // Stats Update
+        // Stats Update (MORE IMPACT NOW that stats start low)
         const newStats = { ...prev.stats };
         if (q.cat in newStats) {
             const stat = newStats[q.cat];
-            stat.val = Math.min(stat.max, Math.max(0, stat.val + (nowDone ? 2 : -2)));
+            // +5 instead of +2 to make progress visible faster from 10
+            stat.val = Math.min(stat.max, Math.max(0, stat.val + (nowDone ? 5 : -5)));
         }
 
         // Level Up Logic
@@ -245,7 +269,14 @@ const App: React.FC = () => {
         if(newXp >= xpForNext) {
             newLevel++;
             newXp -= xpForNext;
-            setRewardModal({ txt: "NIVEAU SUPÉRIEUR !", sub: `Niveau ${newLevel}`, icon: "🆙", color: "#ffc400" });
+            // TRIGGER LEVEL UP STARR DROP
+            setStarrDrop({
+                active: true,
+                type: 'LEGENDARY',
+                rewardText: "NIVEAU SUPÉRIEUR !",
+                subText: `Niveau ${newLevel}`,
+                icon: "🆙"
+            });
         }
 
         const newQuests = [...prev.quests];
@@ -290,7 +321,23 @@ const App: React.FC = () => {
                 ...prev,
                 tokens: prev.tokens - item.cost
             }));
-            setRewardModal({ txt: "ACHAT RÉUSSI !", sub: item.txt, icon: item.icon, color: item.color });
+
+            // Map rarity keys from French to English
+            const rarityMap: Record<'COMMUNE' | 'RARE' | 'EPIQUE' | 'LEGENDAIRE', 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY'> = {
+                'COMMUNE': 'COMMON',
+                'RARE': 'RARE',
+                'EPIQUE': 'EPIC',
+                'LEGENDAIRE': 'LEGENDARY'
+            };
+            
+            // USE STARR DROP FOR SHOP ITEMS
+            setStarrDrop({
+                active: true,
+                type: rarityMap[item.rar],
+                rewardText: item.txt,
+                subText: "ACHAT RÉUSSI",
+                icon: item.icon
+            });
           }
       } else {
           setIsShaking(true);
@@ -299,13 +346,30 @@ const App: React.FC = () => {
   };
 
   const handleGameWin = (tokens: number, xp: number) => {
-      setState(prev => ({
-          ...prev,
-          tokens: prev.tokens + tokens,
-          xp: prev.xp + xp
-      }));
+      setState(prev => {
+          // Increase School Stats on game win
+          const newSchoolStats = { ...prev.schoolStats };
+          // Randomly boost MATH or LEC based on gameMode ideally, but here generic boost
+          newSchoolStats.MAT.val = Math.min(100, newSchoolStats.MAT.val + 2);
+          newSchoolStats.LEC.val = Math.min(100, newSchoolStats.LEC.val + 2);
+
+          return {
+            ...prev,
+            tokens: prev.tokens + tokens,
+            xp: prev.xp + xp,
+            schoolStats: newSchoolStats
+          }
+      });
       setGameMode('HUB');
-      setRewardModal({ txt: "VICTOIRE !", sub: `+${tokens} Jetons`, icon: "🏆", color: "#ffc400" });
+      
+      // TRIGGER STARR DROP FOR GAME WIN
+      setStarrDrop({
+          active: true,
+          type: tokens > 20 ? 'EPIC' : 'RARE',
+          rewardText: "VICTOIRE !",
+          subText: `+${tokens} Jetons`,
+          icon: "🏆"
+      });
   };
 
   // --- HELPERS ---
@@ -335,6 +399,15 @@ const App: React.FC = () => {
           <div className="min-h-screen bg-brawl-dark p-6 flex flex-col items-center justify-center relative overflow-hidden">
               <StarBackground season={currentSeason} />
               
+              {/* ADMIN BUTTON */}
+              <button 
+                onClick={() => { setPinInput(''); setAuthStep('ADMIN_PIN'); }}
+                className="absolute top-4 left-4 z-50 p-2 bg-black/40 rounded-full text-gray-500 hover:text-white hover:bg-black/60 transition-colors"
+                title="Administration"
+              >
+                  <Settings size={20} />
+              </button>
+
               {/* DEBUG BUTTON */}
               <button 
                 onClick={() => setDebugOpen(true)} 
@@ -356,9 +429,6 @@ const App: React.FC = () => {
                                 className="w-24 h-28 rounded-xl bg-black/30 mb-2 border-2 border-white/20 object-cover object-top shadow-md" 
                               />
                               <span className="font-title text-xl text-white truncate w-full text-center">{p.name}</span>
-                              <button onClick={(e) => handleDeleteProfile(p.id, e)} className="absolute top-2 right-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-black/50 rounded-full hover:bg-white">
-                                  <Trash2 size={16} />
-                              </button>
                           </div>
                       ))}
                       
@@ -422,8 +492,58 @@ const App: React.FC = () => {
           </div>
       );
   }
+  
+  // 3. ADMIN PANEL LIST
+  if (authStep === 'ADMIN_PANEL') {
+      return (
+          <div className="min-h-screen bg-brawl-dark p-6 flex flex-col items-center relative overflow-hidden">
+              <StarBackground season={currentSeason} />
+              
+              <div className="z-10 w-full max-w-md">
+                   <div className="flex items-center mb-8">
+                       <button onClick={() => setAuthStep('SELECT')} className="p-2 bg-white/10 rounded-lg hover:bg-white/20"><ArrowLeft /></button>
+                       <h1 className="ml-4 text-3xl font-title text-red-500 flex items-center gap-2"><ShieldAlert /> ADMINISTRATION</h1>
+                   </div>
 
-  // 3. CREATE PROFILE
+                   <div className="bg-[#1e1629] border-4 border-red-900 rounded-2xl p-4 shadow-2xl">
+                       <p className="text-gray-400 mb-4 text-sm bg-black/40 p-3 rounded-lg border border-red-500/30">
+                           Zone de danger. La suppression d'un profil est irréversible.
+                       </p>
+
+                       {profiles.length === 0 ? (
+                           <div className="text-center py-8 text-gray-500">Aucun profil enregistré.</div>
+                       ) : (
+                           <div className="space-y-3">
+                               {profiles.map(p => (
+                                   <div key={p.id} className="flex items-center justify-between bg-black/40 p-3 rounded-xl border border-white/5">
+                                       <div className="flex items-center gap-3">
+                                            <img 
+                                                src={getAvatarUrl(p.avatar)} 
+                                                alt={p.name} 
+                                                className="w-12 h-14 rounded-lg object-cover object-top border border-white/10" 
+                                            />
+                                            <div>
+                                                <div className="font-title text-lg leading-none">{p.name}</div>
+                                                <div className="text-xs text-gray-500 font-mono">PIN: {p.pin}</div>
+                                            </div>
+                                       </div>
+                                       <button 
+                                            onClick={() => handleDeleteProfile(p.id)}
+                                            className="p-3 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-colors border border-red-500/30"
+                                       >
+                                           <Trash2 size={20} />
+                                       </button>
+                                   </div>
+                               ))}
+                           </div>
+                       )}
+                   </div>
+              </div>
+          </div>
+      );
+  }
+
+  // 4. CREATE PROFILE
   if (authStep === 'CREATE') {
       return (
           <div className="min-h-screen bg-brawl-dark p-6 flex flex-col relative">
@@ -554,20 +674,31 @@ const App: React.FC = () => {
       );
   }
 
-  // 4. PIN ENTRY
-  if (authStep === 'PIN') {
+  // 5. PIN ENTRY (USER OR ADMIN)
+  if (authStep === 'PIN' || authStep === 'ADMIN_PIN') {
+      const isAdminMode = authStep === 'ADMIN_PIN';
       return (
           <div className="min-h-screen bg-brawl-dark flex flex-col items-center justify-center p-6 relative">
               <StarBackground season={currentSeason} />
               <div className="z-10 w-full max-w-xs text-center">
-                  <img 
-                    src={getAvatarUrl(targetProfile?.avatar || '')} 
-                    className="w-24 h-auto aspect-[6/7] rounded-2xl mx-auto mb-6 border-4 border-brawl-purple object-cover object-top shadow-xl" 
-                  />
-                  <h2 className="text-3xl font-title mb-8">CODE SECRET</h2>
+                  {!isAdminMode ? (
+                      <img 
+                        src={getAvatarUrl(targetProfile?.avatar || '')} 
+                        className="w-24 h-auto aspect-[6/7] rounded-2xl mx-auto mb-6 border-4 border-brawl-purple object-cover object-top shadow-xl" 
+                      />
+                  ) : (
+                      <div className="w-24 h-24 rounded-full bg-red-900 border-4 border-red-500 mx-auto mb-6 flex items-center justify-center text-red-500">
+                          <Settings size={48} />
+                      </div>
+                  )}
+                  
+                  <h2 className={`text-3xl font-title mb-8 ${isAdminMode ? 'text-red-500' : 'text-white'}`}>
+                      {isAdminMode ? 'CODE ADMIN' : 'CODE SECRET'}
+                  </h2>
+                  
                   <div className="flex justify-center gap-4 mb-8">
                       {[0,1,2,3].map(i => (
-                          <div key={i} className={`w-4 h-4 rounded-full transition-colors ${pinInput.length > i ? 'bg-brawl-yellow shadow-[0_0_10px_#ffc400]' : 'bg-white/20'}`}></div>
+                          <div key={i} className={`w-4 h-4 rounded-full transition-colors ${pinInput.length > i ? (isAdminMode ? 'bg-red-500 shadow-[0_0_10px_#ff0000]' : 'bg-brawl-yellow shadow-[0_0_10px_#ffc400]') : 'bg-white/20'}`}></div>
                       ))}
                   </div>
                   <div className="grid grid-cols-3 gap-4">
@@ -576,14 +707,14 @@ const App: React.FC = () => {
                       ))}
                       <button onClick={() => setAuthStep('SELECT')} className="h-16 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center border-b-4 border-transparent active:border-b-0 active:translate-y-[2px]"><X /></button>
                       <button onClick={() => setPinInput(p => (p + 0).slice(0,4))} className="h-16 rounded-xl bg-white/10 font-title text-2xl active:bg-white/30 border-b-4 border-transparent active:border-b-0 active:translate-y-[2px]">0</button>
-                      <button onClick={verifyPin} className="h-16 rounded-xl bg-brawl-green text-black flex items-center justify-center active:scale-95 border-b-4 border-green-800 active:border-b-0 active:translate-y-[4px]"><Check /></button>
+                      <button onClick={verifyPin} className={`h-16 rounded-xl text-black flex items-center justify-center active:scale-95 border-b-4 active:border-b-0 active:translate-y-[4px] ${isAdminMode ? 'bg-red-500 border-red-800' : 'bg-brawl-green border-green-800'}`}><Check /></button>
                   </div>
               </div>
           </div>
       );
   }
 
-  // 5. GAME VIEWS (Math, Reading)
+  // 6. GAME VIEWS (Math, Reading)
   if (gameMode !== 'HUB') {
       return (
           <div className="h-screen bg-brawl-dark text-white relative overflow-hidden flex flex-col">
@@ -593,7 +724,7 @@ const App: React.FC = () => {
       );
   }
 
-  // 6. MAIN APP DASHBOARD
+  // 7. MAIN APP DASHBOARD
   return (
     <div className="relative z-10 flex flex-col h-screen max-w-md mx-auto bg-brawl-dark text-white overflow-hidden shadow-2xl">
       <StarBackground season={currentSeason} />
@@ -751,16 +882,15 @@ const App: React.FC = () => {
           </div>
       )}
 
-      {/* 2. Reward / Level Up Modal */}
-      {rewardModal && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-fade-in" onClick={() => setRewardModal(null)}>
-              <div className="bg-gradient-to-b from-[#2a1d3a] to-[#150f1d] w-full max-w-xs rounded-[2rem] border-4 border-brawl-yellow p-8 flex flex-col items-center text-center shadow-[0_0_50px_rgba(255,196,0,0.3)] animate-pop" onClick={e => e.stopPropagation()}>
-                  <div className="text-6xl mb-4 animate-bounce">{rewardModal.icon}</div>
-                  <h2 className="text-3xl font-title text-brawl-yellow text-stroke-1 mb-2 leading-none">{rewardModal.txt}</h2>
-                  {rewardModal.sub && <p className="text-white/80 font-bold mb-6">{rewardModal.sub}</p>}
-                  <button onClick={() => setRewardModal(null)} className="w-full py-3 bg-brawl-blue text-black font-title text-xl rounded-xl border-b-4 border-blue-700 active:border-b-0 active:translate-y-1">SUPER !</button>
-              </div>
-          </div>
+      {/* 2. REPLACED SIMPLE REWARD MODAL WITH STARR DROP */}
+      {starrDrop.active && (
+          <StarrDrop 
+              type={starrDrop.type} 
+              rewardText={starrDrop.rewardText}
+              subText={starrDrop.subText}
+              icon={starrDrop.icon}
+              onClose={() => setStarrDrop({...starrDrop, active: false})}
+          />
       )}
 
     </div>

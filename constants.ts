@@ -151,6 +151,7 @@ export const INITIAL_STATE: AppState = {
   tasksSinceLastBox: 0,
   lastDailyClaim: null,
 
+  // CHANGED: Initial stats set to 10 so they are empty/low at start
   stats: {
     "MNT": { name: "MENTAL", val: 10, max: 100 },
     "PHY": { name: "PHYSIQUE", val: 10, max: 100 },
