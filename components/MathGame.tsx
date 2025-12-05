@@ -237,9 +237,11 @@ const GeometrySection: React.FC<{
     // --- GALLERY MODE ---
     const shapes = [
         { id: 'CUBE', name: 'CUBE', desc: '6 Faces Carrées', icon: Box },
-        { id: 'PAVE', name: 'PAVÉ', desc: 'Faces Rectangles', icon: Box },
-        { id: 'PYRAMID', name: 'PYRAMIDE', desc: 'Base Carrée', icon: Triangle },
-        { id: 'CYLINDER', name: 'CYLINDRE', desc: 'Rond et Long', icon: Circle },
+        { id: 'PAVE', name: 'PAVÉ', desc: 'Prisme Rectangulaire', icon: Box },
+        { id: 'PYRAMID', name: 'PYRAMIDE', desc: '5 Faces (4 Triangles)', icon: Triangle },
+        { id: 'CYLINDER', name: 'CYLINDRE', desc: '2 Cercles, 1 Face Courbe', icon: Circle },
+        { id: 'CONE', name: 'CÔNE', desc: '1 Cercle, 1 Sommet', icon: Triangle },
+        { id: 'SPHERE', name: 'SPHÈRE', desc: '1 Seule Face Courbe', icon: Circle },
     ];
 
     const CylinderFaces = () => {
@@ -247,8 +249,23 @@ const GeometrySection: React.FC<{
         const count = 12;
         for(let i=0; i<count; i++) {
             const rot = i * (360/count);
+            // Radius 38 to ensure overlap/seal with 80px caps
             faces.push(
-                <div key={i} className="cyl-face" style={{transform: `rotateY(${rot}deg) translateZ(40px)`}}></div>
+                <div key={i} className="cyl-face" style={{transform: `rotateY(${rot}deg) translateZ(38px)`}}></div>
+            );
+        }
+        return <>{faces}</>;
+    };
+
+    const ConeFaces = () => {
+        const faces = [];
+        const count = 12;
+        // Apothem for R=40, N=12 is approx 38.6px. We use 39px to push to edge.
+        // We lean them in (rotateX) to meet at apex.
+        for(let i=0; i<count; i++) {
+            const rot = i * (360/count);
+            faces.push(
+                <div key={i} className="cone-face" style={{transform: `rotateY(${rot}deg) translateZ(39px) rotateX(20deg)`}}></div>
             );
         }
         return <>{faces}</>;
@@ -290,6 +307,23 @@ const GeometrySection: React.FC<{
                             <CylinderFaces />
                         </div>
                     )}
+                    {shape === 'CONE' && (
+                        <div className="shape-3d cone gallery-item">
+                            <div className="base"></div>
+                            <ConeFaces />
+                        </div>
+                    )}
+                    {shape === 'SPHERE' && (
+                        <div className="shape-3d sphere gallery-item">
+                            <div className="core"></div>
+                            <div className="ring r1"></div>
+                            <div className="ring r2"></div>
+                            <div className="ring r3"></div>
+                            <div className="ring r4"></div>
+                            <div className="ring r5"></div>
+                            <div className="ring r6"></div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -321,7 +355,7 @@ const GeometrySection: React.FC<{
 const Style3D = () => (
     <style>{`
         .perspective-container {
-            perspective: 800px;
+            perspective: 1000px;
             overflow: hidden;
         }
         .scene {
@@ -332,8 +366,8 @@ const Style3D = () => (
             animation: spin 10s infinite linear;
         }
         @keyframes spin {
-            0% { transform: rotateX(-20deg) rotateY(0deg); }
-            100% { transform: rotateX(-20deg) rotateY(360deg); }
+            0% { transform: rotateX(-15deg) rotateY(0deg); }
+            100% { transform: rotateX(-15deg) rotateY(360deg); }
         }
 
         /* Generic 3D Container */
@@ -345,7 +379,7 @@ const Style3D = () => (
             transform-style: preserve-3d;
         }
         .gallery-item {
-             top: 25px; /* Center in 150px high scene container roughly */
+             top: 20px; 
              left: 0;
         }
 
@@ -378,39 +412,39 @@ const Style3D = () => (
             border: 2px solid #10b981;
             box-sizing: border-box;
         }
-        /* Dimensions: Width 100, Height 150, Depth 60 */
-        .pave .front, .pave .back { width: 100px; height: 150px; }
+        /* Dimensions: Front/Back 100x150, Left/Right 60x150, Top/Bottom 100x60 */
+        .pave .front, .pave .back { width: 100px; height: 150px; top: -25px; } /* Centered Y: (100-150)/2 = -25 */
         .pave .front { transform: translateZ(30px); }
         .pave .back { transform: rotateY(180deg) translateZ(30px); }
         
-        .pave .right, .pave .left { width: 60px; height: 150px; left: 20px; } /* Centered horizontally (100-60)/2 = 20 */
+        .pave .right, .pave .left { width: 60px; height: 150px; left: 20px; top: -25px; } /* Center X: (100-60)/2=20, Y:-25 */
         .pave .right { transform: rotateY(90deg) translateZ(50px); }
         .pave .left { transform: rotateY(-90deg) translateZ(50px); }
         
-        .pave .top, .pave .bottom { width: 100px; height: 60px; top: 45px; } /* Centered vertically (150-60)/2 = 45 */
+        .pave .top, .pave .bottom { width: 100px; height: 60px; top: 20px; } /* Center Y: (100-60)/2=20 */
         .pave .top { transform: rotateX(90deg) translateZ(75px); }
         .pave .bottom { transform: rotateX(-90deg) translateZ(75px); }
 
 
         /* --- PYRAMID --- */
-        /* Base 100x100. Height 100. */
+        /* Square Base 100x100 */
         .pyramid .base {
             position: absolute; width: 100px; height: 100px;
             background: rgba(255,165,0,0.2);
             border: 2px solid orange;
-            transform: rotateX(90deg) translateZ(50px); /* Bottom of the bounding box */
+            transform: rotateX(90deg) translateZ(50px); /* Floor */
         }
         .pyramid .pyr-face {
             position: absolute;
             width: 100px;
-            height: 112px; /* Slant height approximation */
-            background: linear-gradient(to bottom, orange, rgba(255,165,0,0.2));
+            height: 100px; /* Approx height */
+            background: linear-gradient(to top, rgba(255,165,0,0.4), transparent);
+            border-bottom: 2px solid orange;
             clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
             transform-origin: bottom center;
-            top: -12px; /* Position so bottom aligns with base */
+            top: -50px; /* Align bottom to center, then adjust via Z */
         }
-        /* Angle calc: atan(100/50) = 63.4 deg relative to ground. 
-           In CSS rotX, 0 is vertical. So 90 - 63.4 = 26.6 deg tilt. */
+        /* Rotate faces to meet at top. Base radius 50. */
         .pyramid .one   { transform: translateZ(50px) rotateX(30deg); }
         .pyramid .two   { transform: rotateY(90deg) translateZ(50px) rotateX(30deg); }
         .pyramid .three { transform: rotateY(180deg) translateZ(50px) rotateX(30deg); }
@@ -418,24 +452,74 @@ const Style3D = () => (
 
 
         /* --- CYLINDER --- */
-        /* Radius 40px, Height 120px */
         .cylinder .top-cap, .cylinder .bottom-cap {
             position: absolute; width: 80px; height: 80px; border-radius: 50%;
             background: rgba(0,255,255,0.4); border: 2px solid cyan;
-            left: 10px; /* Center in 100px container */
+            left: 10px; /* Center in 100px: (100-80)/2 = 10 */
         }
         .cylinder .top-cap { transform: rotateX(90deg) translateZ(60px); }
         .cylinder .bottom-cap { transform: rotateX(90deg) translateZ(-60px); }
         
         .cylinder .cyl-face {
             position: absolute;
-            width: 22px; /* 80 * tan(15) approx */
+            width: 23px; /* Slightly overlapping 21.4px to seal */
             height: 120px;
             background: rgba(0,255,255,0.15);
-            border: 1px solid rgba(0,255,255,0.3);
-            left: 39px; /* Center x */
-            top: -10px; /* Center y in 100px height? No, height 120, container 100. Top -10 puts it vertically centered */
+            border-left: 1px solid rgba(0,255,255,0.2);
+            border-right: 1px solid rgba(0,255,255,0.2);
+            left: 38.5px; /* (100-23)/2 */
+            top: -10px; /* (100-120)/2 */
         }
+
+        /* --- CONE --- */
+        .cone .base {
+            position: absolute; width: 80px; height: 80px; border-radius: 50%;
+            background: rgba(255,0,255,0.3); border: 2px solid magenta;
+            left: 10px;
+            /* Rotate -90 to face bottom, translated Z+50 to be at bottom of cube */
+            transform: rotateX(-90deg) translateZ(50px);
+        }
+        .cone .cone-face {
+            position: absolute;
+            width: 25px; 
+            height: 100px;
+            background: linear-gradient(to top, rgba(255,0,255,0.1), transparent);
+            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+            transform-origin: bottom center;
+            left: 37.5px;
+            top: -50px; /* Start at top to center */
+        }
+
+        /* --- SPHERE (Hologram Energy Orb) --- */
+        .sphere .core {
+            position: absolute;
+            width: 40px; height: 40px;
+            background: radial-gradient(circle at 30% 30%, #fff, #00ffaa, #004433);
+            border-radius: 50%;
+            box-shadow: 0 0 30px #00ffaa, 0 0 10px #fff;
+            top: 30px; left: 30px; /* Center in 100x100: (100-40)/2 = 30 */
+            animation: pulse 2s infinite ease-in-out;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.9); opacity: 0.8; }
+        }
+        
+        .sphere .ring {
+            position: absolute; width: 100px; height: 100px;
+            border-radius: 50%;
+            border: 1px solid rgba(0,255,170, 0.6);
+            box-shadow: 0 0 8px rgba(0,255,170, 0.4);
+            background: transparent;
+        }
+        /* Multiple rings for dense wireframe effect */
+        .sphere .r1 { transform: rotateY(0deg); }
+        .sphere .r2 { transform: rotateY(60deg); }
+        .sphere .r3 { transform: rotateY(120deg); }
+        .sphere .r4 { transform: rotateX(90deg); }
+        .sphere .r5 { transform: rotateX(45deg); }
+        .sphere .r6 { transform: rotateX(-45deg); }
 
 
         /* --- ANATOMY OVERRIDES --- */
