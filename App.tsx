@@ -64,6 +64,9 @@ const App: React.FC = () => {
   // Rewards States
   const [isShaking, setIsShaking] = useState(false);
   
+  // Notification States (Psychology hook)
+  const [hasNewGames, setHasNewGames] = useState(true);
+
   // Starr Drop State (Replaces simple modal)
   const [starrDrop, setStarrDrop] = useState<{
       active: boolean;
@@ -92,7 +95,16 @@ const App: React.FC = () => {
               setUser(u);
           }
       });
-      return () => unsub();
+
+      // Randomly trigger "New Games" notification to re-engage user (Variable Reward Schedule)
+      const notifInterval = setInterval(() => {
+          if (Math.random() > 0.8) setHasNewGames(true);
+      }, 60000); // Check every minute
+
+      return () => {
+          unsub();
+          clearInterval(notifInterval);
+      };
   }, []);
 
   // --- LOAD PROFILES (Global) ---
@@ -340,11 +352,6 @@ const App: React.FC = () => {
 
   const buyItem = (item: ShopItem) => {
       if(state.tokens >= item.cost) {
-          // Use StarrDrop as confirmation/reward sequence directly?
-          // For now, let's just confirm simply or rely on the user having checked first.
-          // Let's assume click = buy for child simplicity, but maybe add a confirm step in a real app.
-          // Brawl Stars usually just buys.
-          
             setState(prev => ({
                 ...prev,
                 tokens: prev.tokens - item.cost
@@ -392,6 +399,13 @@ const App: React.FC = () => {
           subText: `+${tokens} Jetons`,
           icon: "🏆"
       });
+  };
+
+  const handleNavClick = (view: ViewName) => {
+      setCurrentView(view);
+      if (view === 'games') {
+          setHasNewGames(false); // Clear notification
+      }
   };
 
   // --- HELPERS ---
@@ -893,16 +907,36 @@ const App: React.FC = () => {
               { id: 'stats', icon: BarChart3, label: 'STATS' },
               { id: 'rewards', icon: Gift, label: 'BUTIN' },
               { id: 'games', icon: Gamepad2, label: 'JEUX' }
-          ].map(tab => (
-              <button 
-                key={tab.id}
-                onClick={() => setCurrentView(tab.id as ViewName)}
-                className={`flex flex-col items-center justify-center py-2 rounded-xl transition-all ${currentView === tab.id ? 'bg-white/10 text-brawl-yellow' : 'text-gray-500 hover:text-gray-300'}`}
-              >
-                  <tab.icon size={24} className={currentView === tab.id ? 'drop-shadow-[0_0_8px_rgba(255,196,0,0.5)]' : ''} />
-                  <span className="text-[10px] font-bold mt-1">{tab.label}</span>
-              </button>
-          ))}
+          ].map(tab => {
+              // Notification Logic for Games Tab
+              const isGames = tab.id === 'games';
+              const showNotif = isGames && hasNewGames;
+
+              return (
+                <button 
+                    key={tab.id}
+                    onClick={() => handleNavClick(tab.id as ViewName)}
+                    className={`flex flex-col items-center justify-center py-2 rounded-xl transition-all relative ${currentView === tab.id ? 'bg-white/10 text-brawl-yellow' : 'text-gray-500 hover:text-gray-300'}`}
+                >
+                    <div className="relative">
+                        <tab.icon 
+                            size={24} 
+                            className={`
+                                ${currentView === tab.id ? 'drop-shadow-[0_0_8px_rgba(255,196,0,0.5)]' : ''} 
+                                ${showNotif ? 'text-red-500 animate-bounce' : ''}
+                            `} 
+                        />
+                        {showNotif && (
+                            <div className="absolute -top-1 -right-1">
+                                <span className="absolute inline-flex h-3 w-3 rounded-full bg-red-500 opacity-75 animate-ping"></span>
+                                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-600 border border-black"></span>
+                            </div>
+                        )}
+                    </div>
+                    <span className={`text-[10px] font-bold mt-1 ${showNotif ? 'text-red-500' : ''}`}>{tab.label}</span>
+                </button>
+              );
+          })}
       </nav>
 
       {/* MODALS */}
