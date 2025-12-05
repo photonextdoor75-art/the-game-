@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Gamepad2, Calculator, ArrowLeft, Check, X, Box, Cuboid, Triangle, Circle, Shapes } from 'lucide-react';
+import { Gamepad2, Calculator, ArrowLeft, Check, X, Box, Triangle, Circle, Shapes } from 'lucide-react';
 
 interface MathGameProps {
     onWin: (tokens: number, xp: number) => void;
@@ -237,7 +237,7 @@ const GeometrySection: React.FC<{
     // --- GALLERY MODE ---
     const shapes = [
         { id: 'CUBE', name: 'CUBE', desc: '6 Faces Carrées', icon: Box },
-        { id: 'PAVE', name: 'PAVÉ', desc: 'Faces Rectangles', icon: Cuboid },
+        { id: 'PAVE', name: 'PAVÉ', desc: 'Faces Rectangles', icon: Box },
         { id: 'PYRAMID', name: 'PYRAMIDE', desc: 'Base Carrée', icon: Triangle },
         { id: 'CYLINDER', name: 'CYLINDRE', desc: 'Rond et Long', icon: Circle },
     ];
